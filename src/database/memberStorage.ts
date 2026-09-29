@@ -1,4 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+    recordDeletedRecord,
+} from "../services/syncDeletionStorage";
 
 export type Member = {
     id: string;

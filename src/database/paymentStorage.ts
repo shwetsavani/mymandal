@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { triggerCloudSync } from "../services/cloudSync";
 
 export type Payment = {
     id: string;
@@ -20,7 +21,9 @@ const PAYMENTS_KEY = "mandal_payments";
 
 export const getPayments = async (): Promise<Payment[]> => {
     try {
-        const data = await AsyncStorage.getItem(PAYMENTS_KEY);
+        const data = await AsyncStorage.getItem(
+            PAYMENTS_KEY
+        );
 
         if (!data) {
             return [];
@@ -28,7 +31,11 @@ export const getPayments = async (): Promise<Payment[]> => {
 
         return JSON.parse(data);
     } catch (error) {
-        console.error("Get payments error:", error);
+        console.error(
+            "Get payments error:",
+            error
+        );
+
         return [];
     }
 };
@@ -37,18 +44,30 @@ export const savePayments = async (
     payments: Payment[]
 ): Promise<void> => {
     try {
+        // Always save locally first.
         await AsyncStorage.setItem(
             PAYMENTS_KEY,
             JSON.stringify(payments)
         );
+
+        // Automatically sync to Firebase.
+        // Local save is not blocked by cloud sync.
+        void triggerCloudSync();
     } catch (error) {
-        console.error("Save payments error:", error);
+        console.error(
+            "Save payments error:",
+            error
+        );
+
         throw error;
     }
 };
 
 export const addPayment = async (
-    payment: Omit<Payment, "id" | "createdAt" | "updatedAt">
+    payment: Omit<
+        Payment,
+        "id" | "createdAt" | "updatedAt"
+    >
 ): Promise<Payment> => {
     const payments = await getPayments();
 
@@ -56,10 +75,13 @@ export const addPayment = async (
 
     const newPayment: Payment = {
         ...payment,
+
         id: `${Date.now()}-${Math.random()
             .toString(36)
             .substring(2, 9)}`,
+
         createdAt: now,
+
         updatedAt: now,
     };
 
@@ -71,32 +93,35 @@ export const addPayment = async (
     return newPayment;
 };
 
-export const getPaymentsForObligation = async (
-    obligationId: string
-): Promise<Payment[]> => {
-    const payments = await getPayments();
+export const getPaymentsForObligation =
+    async (
+        obligationId: string
+    ): Promise<Payment[]> => {
+        const payments = await getPayments();
 
-    return payments.filter(
-        (payment) =>
-            payment.obligationId === obligationId
-    );
-};
-
-export const getTotalPaidForObligation = async (
-    obligationId: string
-): Promise<number> => {
-    const payments =
-        await getPaymentsForObligation(
-            obligationId
+        return payments.filter(
+            (payment) =>
+                payment.obligationId ===
+                obligationId
         );
+    };
 
-    return payments.reduce(
-        (total, payment) =>
-            total +
-            payment.actualCollectedAmount,
-        0
-    );
-};
+export const getTotalPaidForObligation =
+    async (
+        obligationId: string
+    ): Promise<number> => {
+        const payments =
+            await getPaymentsForObligation(
+                obligationId
+            );
+
+        return payments.reduce(
+            (total, payment) =>
+                total +
+                payment.actualCollectedAmount,
+            0
+        );
+    };
 
 export const updatePayment = async (
     paymentId: string,
@@ -125,33 +150,24 @@ export const updatePayment = async (
         );
     }
 
-    const updatedPayments = payments.map(
-        (payment) =>
-            payment.id === paymentId
-                ? {
-                    ...payment,
-                    ...updates,
-                    updatedAt:
-                        new Date().toISOString(),
-                }
-                : payment
-    );
+    const updatedPayments =
+        payments.map(
+            (payment) =>
+                payment.id === paymentId
+                    ? {
+                        ...payment,
+                        ...updates,
+                        updatedAt:
+                            new Date().toISOString(),
+                    }
+                    : payment
+        );
 
     await savePayments(
         updatedPayments
     );
 };
 
-/**
- * Permanently removes one specific payment.
- *
- * This is used when the admin accidentally
- * records a payment and wants to move the
- * monthly obligation back toward Pending.
- *
- * Only the selected payment is removed.
- * Other partial payments remain untouched.
- */
 export const deletePayment = async (
     paymentId: string
 ): Promise<void> => {
@@ -179,25 +195,21 @@ export const deletePayment = async (
     );
 };
 
-/**
- * Permanently removes every payment
- * belonging to a specific member.
- *
- * This is used when a member permanently
- * leaves the Mandal.
- */
-export const deletePaymentsForMember = async (
-    memberId: string
-): Promise<void> => {
-    const payments = await getPayments();
+export const deletePaymentsForMember =
+    async (
+        memberId: string
+    ): Promise<void> => {
+        const payments =
+            await getPayments();
 
-    const updatedPayments =
-        payments.filter(
-            (payment) =>
-                payment.memberId !== memberId
+        const updatedPayments =
+            payments.filter(
+                (payment) =>
+                    payment.memberId !==
+                    memberId
+            );
+
+        await savePayments(
+            updatedPayments
         );
-
-    await savePayments(
-        updatedPayments
-    );
-};
+    };

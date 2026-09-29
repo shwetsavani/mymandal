@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+
 import {
     Alert,
     FlatList,
@@ -11,53 +12,63 @@ import {
 import {
     getMembers,
     setMemberActive,
-    deleteMember,
     type Member,
 } from "../database/memberStorage";
 
-import { deleteMonthlyObligationsForMember } from "../database/monthlyObligationStorage";
-import { deletePaymentsForMember } from "../database/paymentStorage";
-
 import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
+import type {
+    NativeStackNavigationProp,
+} from "@react-navigation/native-stack";
 
 type RootStackParamList = {
     Home: undefined;
+
     Members: undefined;
+
     AddMember: undefined;
+
     EditMember: {
         memberId: string;
     };
 };
 
 type MembersScreenNavigationProp =
-    NativeStackNavigationProp<RootStackParamList, "Members">;
+    NativeStackNavigationProp<
+        RootStackParamList,
+        "Members"
+    >;
 
 export default function MembersScreen() {
     const navigation =
         useNavigation<MembersScreenNavigationProp>();
 
-    const [members, setMembers] = useState<Member[]>([]);
-    const [showInactive, setShowInactive] = useState(false);
+    const [members, setMembers] =
+        useState<Member[]>([]);
+
+    const [showInactive, setShowInactive] =
+        useState(false);
 
     const loadMembers = async () => {
-        try {
-            const data = await getMembers();
-            setMembers(data);
-        } catch (error) {
-            console.error("Load members error:", error);
-        }
+        const data = await getMembers();
+
+        setMembers(data);
     };
 
     useEffect(() => {
         loadMembers();
     }, []);
 
-    const visibleMembers = members.filter((member) =>
-        showInactive ? !member.isActive : member.isActive
-    );
+    const visibleMembers =
+        members.filter((member) =>
+            showInactive
+                ? !member.isActive
+                : member.isActive
+        );
 
-    const handleToggleActive = (member: Member) => {
+    const handleToggleActive = (
+        member: Member
+    ) => {
         const action = member.isActive
             ? "deactivate"
             : "reactivate";
@@ -66,83 +77,27 @@ export default function MembersScreen() {
             member.isActive
                 ? "Mark Inactive"
                 : "Reactivate Member",
+
             `${member.name} will be ${action}d.`,
+
             [
                 {
                     text: "Cancel",
                     style: "cancel",
                 },
+
                 {
                     text: member.isActive
                         ? "Mark Inactive"
                         : "Reactivate",
+
                     onPress: async () => {
-                        try {
-                            await setMemberActive(
-                                member.id,
-                                !member.isActive
-                            );
+                        await setMemberActive(
+                            member.id,
+                            !member.isActive
+                        );
 
-                            await loadMembers();
-                        } catch (error) {
-                            console.error(
-                                "Toggle member status error:",
-                                error
-                            );
-
-                            Alert.alert(
-                                "Error",
-                                "Unable to update member status."
-                            );
-                        }
-                    },
-                },
-            ]
-        );
-    };
-
-    const handleDeletePermanently = (member: Member) => {
-        Alert.alert(
-            "Delete Member Permanently?",
-            `This will permanently delete ${member.name} and all of their financial records, including payment records and monthly records.\n\nTheir collected amount will also be removed from the Mandal totals.\n\nThis action cannot be undone.`,
-            [
-                {
-                    text: "Cancel",
-                    style: "cancel",
-                },
-                {
-                    text: "Delete Permanently",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            // Delete payment records first.
-                            await deletePaymentsForMember(member.id);
-
-                            // Delete monthly financial records.
-                            await deleteMonthlyObligationsForMember(
-                                member.id
-                            );
-
-                            // Finally delete the member record.
-                            await deleteMember(member.id);
-
-                            await loadMembers();
-
-                            Alert.alert(
-                                "Member Deleted",
-                                `${member.name} and their financial records have been permanently deleted.`
-                            );
-                        } catch (error) {
-                            console.error(
-                                "Permanent member deletion error:",
-                                error
-                            );
-
-                            Alert.alert(
-                                "Error",
-                                "Unable to permanently delete this member. Please try again."
-                            );
-                        }
+                        await loadMembers();
                     },
                 },
             ]
@@ -181,7 +136,8 @@ export default function MembersScreen() {
                         navigation.navigate(
                             "EditMember",
                             {
-                                memberId: item.id,
+                                memberId:
+                                item.id,
                             }
                         )
                     }
@@ -195,25 +151,15 @@ export default function MembersScreen() {
                 <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() =>
-                        handleToggleActive(item)
+                        handleToggleActive(
+                            item
+                        )
                     }
                 >
                     <Text style={styles.actionText}>
                         {item.isActive
                             ? "Inactive"
                             : "Reactivate"}
-                    </Text>
-                </TouchableOpacity>
-
-                {/* Permanent Delete */}
-                <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() =>
-                        handleDeletePermanently(item)
-                    }
-                >
-                    <Text style={styles.deleteText}>
-                        Delete Permanently
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -244,7 +190,11 @@ export default function MembersScreen() {
                         )
                     }
                 >
-                    <Text style={styles.addButtonText}>
+                    <Text
+                        style={
+                            styles.addButtonText
+                        }
+                    >
                         + Add
                     </Text>
                 </TouchableOpacity>
@@ -297,14 +247,26 @@ export default function MembersScreen() {
 
             {/* Member List */}
             {visibleMembers.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyTitle}>
+                <View
+                    style={
+                        styles.emptyContainer
+                    }
+                >
+                    <Text
+                        style={
+                            styles.emptyTitle
+                        }
+                    >
                         {showInactive
                             ? "No inactive members"
                             : "No members yet"}
                     </Text>
 
-                    <Text style={styles.emptyText}>
+                    <Text
+                        style={
+                            styles.emptyText
+                        }
+                    >
                         {showInactive
                             ? "Inactive members will appear here."
                             : "Add your first member to get started."}
@@ -313,10 +275,16 @@ export default function MembersScreen() {
             ) : (
                 <FlatList
                     data={visibleMembers}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) =>
+                        item.id
+                    }
                     renderItem={renderMember}
-                    contentContainerStyle={styles.list}
-                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={
+                        styles.list
+                    }
+                    showsVerticalScrollIndicator={
+                        false
+                    }
                 />
             )}
         </View>
@@ -461,19 +429,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: "600",
         color: "#374151",
-    },
-
-    deleteButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 9,
-        borderRadius: 8,
-        backgroundColor: "#FEE2E2",
-    },
-
-    deleteText: {
-        fontSize: 12,
-        fontWeight: "600",
-        color: "#DC2626",
     },
 
     emptyContainer: {

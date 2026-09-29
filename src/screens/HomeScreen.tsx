@@ -11,6 +11,7 @@ import {
     useFocusEffect,
     useNavigation,
 } from "@react-navigation/native";
+
 import type {
     NativeStackNavigationProp,
 } from "@react-navigation/native-stack";
@@ -39,6 +40,7 @@ type RootStackParamList = {
     History: undefined;
     Reports: undefined;
     Export: undefined;
+    Settings: undefined;
 };
 
 type HomeScreenNavigationProp =
@@ -78,8 +80,10 @@ export default function HomeScreen() {
         useState(true);
 
     const now = new Date();
+
     const currentYear =
         now.getFullYear();
+
     const currentMonth =
         now.getMonth() + 1;
 
@@ -331,8 +335,15 @@ export default function HomeScreen() {
                     </Text>
                 </View>
 
+                {/* Settings Menu */}
                 <TouchableOpacity
                     style={styles.menuButton}
+                    onPress={() =>
+                        navigation.navigate(
+                            "Settings"
+                        )
+                    }
+                    activeOpacity={0.7}
                 >
                     <Text
                         style={styles.menuText}

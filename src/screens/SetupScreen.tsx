@@ -11,12 +11,17 @@ import {
     View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as LocalAuthentication from "expo-local-authentication";
 
 type Props = {
     onSetupComplete: () => void;
 };
 
-export default function SetupScreen({ onSetupComplete }: Props) {
+const BIOMETRIC_ENABLED_KEY = "mandal_biometric_enabled";
+
+export default function SetupScreen({
+                                        onSetupComplete,
+                                    }: Props) {
     const [mandalName, setMandalName] = useState("");
     const [adminName, setAdminName] = useState("");
     const [mobile, setMobile] = useState("");
@@ -29,6 +34,107 @@ export default function SetupScreen({ onSetupComplete }: Props) {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
     };
 
+    const finishSetup = async () => {
+        await AsyncStorage.setItem(
+            BIOMETRIC_ENABLED_KEY,
+            "false"
+        );
+
+        onSetupComplete();
+    };
+
+    const askToEnableBiometric = async () => {
+        try {
+            const hasHardware =
+                await LocalAuthentication.hasHardwareAsync();
+
+            const isEnrolled =
+                await LocalAuthentication.isEnrolledAsync();
+
+            if (!hasHardware || !isEnrolled) {
+                await finishSetup();
+                return;
+            }
+
+            Alert.alert(
+                "Enable Biometric Unlock?",
+                "Use your fingerprint or face to unlock My Mandal faster. Your 4-digit PIN will remain available as a backup.",
+                [
+                    {
+                        text: "Not Now",
+                        style: "cancel",
+                        onPress: async () => {
+                            await finishSetup();
+                        },
+                    },
+                    {
+                        text: "Enable",
+                        onPress: async () => {
+                            try {
+                                const result =
+                                    await LocalAuthentication.authenticateAsync(
+                                        {
+                                            promptMessage:
+                                                "Confirm biometric unlock",
+                                            cancelLabel:
+                                                "Use PIN",
+                                            disableDeviceFallback:
+                                                true,
+                                        }
+                                    );
+
+                                if (result.success) {
+                                    await AsyncStorage.setItem(
+                                        BIOMETRIC_ENABLED_KEY,
+                                        "true"
+                                    );
+
+                                    onSetupComplete();
+                                } else {
+                                    await AsyncStorage.setItem(
+                                        BIOMETRIC_ENABLED_KEY,
+                                        "false"
+                                    );
+
+                                    Alert.alert(
+                                        "Biometric Not Enabled",
+                                        "Biometric authentication was not completed. You can continue using your 4-digit PIN.",
+                                        [
+                                            {
+                                                text: "Continue",
+                                                onPress:
+                                                finishSetup,
+                                            },
+                                        ]
+                                    );
+                                }
+                            } catch (error) {
+                                console.error(
+                                    "Biometric setup error:",
+                                    error
+                                );
+
+                                await AsyncStorage.setItem(
+                                    BIOMETRIC_ENABLED_KEY,
+                                    "false"
+                                );
+
+                                await finishSetup();
+                            }
+                        },
+                    },
+                ]
+            );
+        } catch (error) {
+            console.error(
+                "Biometric availability error:",
+                error
+            );
+
+            await finishSetup();
+        }
+    };
+
     const saveSetup = async () => {
         if (
             !mandalName.trim() ||
@@ -38,27 +144,45 @@ export default function SetupScreen({ onSetupComplete }: Props) {
             !pin ||
             !confirmPin
         ) {
-            Alert.alert("Missing information", "Please fill in all fields.");
+            Alert.alert(
+                "Missing information",
+                "Please fill in all fields."
+            );
             return;
         }
 
-        if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-            Alert.alert("Invalid PIN", "PIN must contain exactly 4 digits.");
+        if (
+            pin.length !== 4 ||
+            !/^\d{4}$/.test(pin)
+        ) {
+            Alert.alert(
+                "Invalid PIN",
+                "PIN must contain exactly 4 digits."
+            );
             return;
         }
 
         if (pin !== confirmPin) {
-            Alert.alert("PIN mismatch", "PIN and Confirm PIN do not match.");
+            Alert.alert(
+                "PIN mismatch",
+                "PIN and Confirm PIN do not match."
+            );
             return;
         }
 
         if (!validateEmail(email.trim())) {
-            Alert.alert("Invalid email", "Please enter a valid recovery email.");
+            Alert.alert(
+                "Invalid email",
+                "Please enter a valid recovery email."
+            );
             return;
         }
 
         if (!/^\d+$/.test(mobile.trim())) {
-            Alert.alert("Invalid mobile number", "Please enter a valid mobile number.");
+            Alert.alert(
+                "Invalid mobile number",
+                "Please enter a valid mobile number."
+            );
             return;
         }
 
@@ -79,18 +203,28 @@ export default function SetupScreen({ onSetupComplete }: Props) {
                 JSON.stringify(setupData)
             );
 
+            await AsyncStorage.setItem(
+                BIOMETRIC_ENABLED_KEY,
+                "false"
+            );
+
             Alert.alert(
                 "Setup Complete",
                 "Your Mandal setup has been saved successfully.",
                 [
                     {
                         text: "Continue",
-                        onPress: onSetupComplete,
+                        onPress: async () => {
+                            await askToEnableBiometric();
+                        },
                     },
                 ]
             );
         } catch (error) {
-            console.error("Setup save error:", error);
+            console.error(
+                "Setup save error:",
+                error
+            );
 
             Alert.alert(
                 "Error",
@@ -104,13 +238,19 @@ export default function SetupScreen({ onSetupComplete }: Props) {
     return (
         <KeyboardAvoidingView
             style={styles.container}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior={
+                Platform.OS === "ios"
+                    ? "padding"
+                    : undefined
+            }
         >
             <ScrollView
                 contentContainerStyle={styles.content}
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>My Mandal</Text>
+                <Text style={styles.title}>
+                    My Mandal
+                </Text>
 
                 <Text style={styles.subtitle}>
                     Set up your Mandal
@@ -173,13 +313,16 @@ export default function SetupScreen({ onSetupComplete }: Props) {
                 <TouchableOpacity
                     style={[
                         styles.button,
-                        saving && styles.buttonDisabled,
+                        saving &&
+                        styles.buttonDisabled,
                     ]}
                     onPress={saveSetup}
                     disabled={saving}
                 >
                     <Text style={styles.buttonText}>
-                        {saving ? "Saving..." : "Complete Setup"}
+                        {saving
+                            ? "Saving..."
+                            : "Complete Setup"}
                     </Text>
                 </TouchableOpacity>
             </ScrollView>

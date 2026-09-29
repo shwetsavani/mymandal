@@ -16,13 +16,20 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.savani.mymandal"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-sharing"
-    ]
+      "expo-sharing",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2299e50e-2fdc-4078-87e9-26a2c68b5b14"
+      }
+    }
   }
 }

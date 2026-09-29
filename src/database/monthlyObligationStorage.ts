@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { triggerCloudSync } from "../services/cloudSync";
 
 export type MonthlyObligationStatus =
     | "pending"
@@ -32,13 +33,10 @@ export type MonthlyObligation = {
     updatedAt: string;
 };
 
-const OBLIGATIONS_KEY =
-    "mandal_monthly_obligations";
+const OBLIGATIONS_KEY = "mandal_monthly_obligations";
 
 export const getMonthlyObligations =
-    async (): Promise<
-        MonthlyObligation[]
-    > => {
+    async (): Promise<MonthlyObligation[]> => {
         try {
             const data =
                 await AsyncStorage.getItem(
@@ -65,12 +63,15 @@ export const saveMonthlyObligations =
         obligations: MonthlyObligation[]
     ): Promise<void> => {
         try {
+            // Always save locally first.
             await AsyncStorage.setItem(
                 OBLIGATIONS_KEY,
-                JSON.stringify(
-                    obligations
-                )
+                JSON.stringify(obligations)
             );
+
+            // Automatically sync to Firebase.
+            // This does not block the local save.
+            void triggerCloudSync();
         } catch (error) {
             console.error(
                 "Save monthly obligations error:",
@@ -86,21 +87,16 @@ export const getMonthlyObligation =
         memberId: string,
         year: number,
         month: number
-    ): Promise<
-        MonthlyObligation | null
-    > => {
+    ): Promise<MonthlyObligation | null> => {
         const obligations =
             await getMonthlyObligations();
 
         return (
             obligations.find(
                 (obligation) =>
-                    obligation.memberId ===
-                    memberId &&
-                    obligation.year ===
-                    year &&
-                    obligation.month ===
-                    month
+                    obligation.memberId === memberId &&
+                    obligation.year === year &&
+                    obligation.month === month
             ) ?? null
         );
     };
@@ -118,12 +114,9 @@ export const createMonthlyObligation =
         const existing =
             obligations.find(
                 (obligation) =>
-                    obligation.memberId ===
-                    memberId &&
-                    obligation.year ===
-                    year &&
-                    obligation.month ===
-                    month
+                    obligation.memberId === memberId &&
+                    obligation.year === year &&
+                    obligation.month === month
             );
 
         if (existing) {
@@ -133,34 +126,33 @@ export const createMonthlyObligation =
         const now =
             new Date().toISOString();
 
-        const newObligation: MonthlyObligation =
-            {
-                id: `${memberId}-${year}-${month}`,
+        const newObligation: MonthlyObligation = {
+            id: `${memberId}-${year}-${month}`,
 
-                memberId,
+            memberId,
 
-                year,
+            year,
 
-                month,
+            month,
 
-                originalInstallment,
+            originalInstallment,
 
-                currentAmountDue:
-                originalInstallment,
+            currentAmountDue:
+            originalInstallment,
 
-                penalty: 0,
+            penalty: 0,
 
-                paidAmount: 0,
+            paidAmount: 0,
 
-                remainingAmount:
-                originalInstallment,
+            remainingAmount:
+            originalInstallment,
 
-                status: "pending",
+            status: "pending",
 
-                createdAt: now,
+            createdAt: now,
 
-                updatedAt: now,
-            };
+            updatedAt: now,
+        };
 
         await saveMonthlyObligations([
             ...obligations,
@@ -190,8 +182,7 @@ export const updateMonthlyObligation =
         const obligationExists =
             obligations.some(
                 (obligation) =>
-                    obligation.id ===
-                    obligationId
+                    obligation.id === obligationId
             );
 
         if (!obligationExists) {
@@ -203,8 +194,7 @@ export const updateMonthlyObligation =
         const updatedObligations =
             obligations.map(
                 (obligation) =>
-                    obligation.id ===
-                    obligationId
+                    obligation.id === obligationId
                         ? {
                             ...obligation,
                             ...updates,
@@ -236,8 +226,7 @@ export const deleteMonthlyObligationsForMember =
         const updatedObligations =
             obligations.filter(
                 (obligation) =>
-                    obligation.memberId !==
-                    memberId
+                    obligation.memberId !== memberId
             );
 
         await saveMonthlyObligations(
