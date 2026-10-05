@@ -16,6 +16,11 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as LocalAuthentication from "expo-local-authentication";
+import Constants from "expo-constants";
+import { useNavigation } from "@react-navigation/native";
+import { useLanguage } from "../localization/LanguageContext";
+
+import { getCloudData } from "../services/cloudSync";
 
 import { auth } from "../services/firebase";
 import {
@@ -47,9 +52,207 @@ const BIOMETRIC_ENABLED_KEY =
 const PENDING_RECOVERY_EMAIL_KEY =
     "mandal_pending_recovery_email";
 
+const REMINDER_SETTINGS_KEY = "mandal_reminder_settings";
+
+type ReminderSettings = {
+    monthlyEnabled: boolean;
+    monthlyDay: number;
+    monthlyHour: number;
+    monthlyMinute: number;
+    overdueEnabled: boolean;
+    overdueHour: number;
+    overdueMinute: number;
+};
+
+const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
+    monthlyEnabled: true,
+    monthlyDay: 15,
+    monthlyHour: 10,
+    monthlyMinute: 0,
+    overdueEnabled: false,
+    overdueHour: 10,
+    overdueMinute: 0,
+};
+
 export default function SettingsScreen({
                                            onBack,
                                        }: Props) {
+    const { language: appLanguage, changeLanguage } = useLanguage();
+
+    const ui = appLanguage === "Gujarati"
+        ? {
+            settings: "સેટિંગ્સ",
+            managePreferences: "તમારા મંડળની પસંદગીઓ મેનેજ કરો",
+            mandalInformation: "મંડળની માહિતી",
+            mandalName: "મંડળનું નામ",
+            adminName: "એડમિનનું નામ",
+            adminMobile: "એડમિન મોબાઇલ",
+            recoveryEmail: "રિકવરી ઈમેલ",
+            security: "સુરક્ષા",
+            changePin: "PIN બદલો",
+            changePinSubtitle: "તમારો 4 અંકનો સુરક્ષા PIN બદલો",
+            biometricUnlock: "બાયોમેટ્રિક અનલોક",
+            language: "ભાષા",
+            appLanguage: "એપની ભાષા",
+            notifications: "નોટિફિકેશન્સ",
+            reminderSettings: "રિમાઇન્ડર સેટિંગ્સ",
+            remindersConfigured: "રિમાઇન્ડર્સ સેટ છે",
+            remindersDisabled: "રિમાઇન્ડર્સ બંધ છે",
+            data: "ડેટા",
+            exportData: "ડેટા એક્સપોર્ટ કરો",
+            exportSubtitle: "તમારા મંડળના રેકોર્ડ્સ એક્સપોર્ટ કરો",
+            export: "એક્સપોર્ટ",
+            restoreData: "ડેટા રિસ્ટોર કરો",
+            restoreSubtitle: "ક્લાઉડ બેકઅપમાંથી તમારો મંડળનો ડેટા રિસ્ટોર કરો",
+            about: "વિશે",
+            aboutMyMandal: "My Mandal વિશે",
+            aboutSubtitle: "એપની માહિતી અને વર્ઝન",
+            notAvailable: "ઉપલબ્ધ નથી",
+            loadingSettings: "સેટિંગ્સ લોડ થઈ રહી છે...",
+            languageSaved: "ભાષા સેવ થઈ",
+            languageSavedMessage: "તમારી એપની ભાષાની પસંદગી સેવ થઈ ગઈ છે.",
+            error: "ભૂલ",
+            unableSaveLanguage: "ભાષાની પસંદગી સેવ કરી શકાઈ નથી.",
+            reminderSaved: "રિમાઇન્ડર સેટિંગ્સ સેવ થઈ",
+            reminderSavedMessage: "તમારી રિમાઇન્ડર પસંદગીઓ સેવ થઈ ગઈ છે.",
+            saveReminderError: "રિમાઇન્ડર સેવ કરી શકાયું નથી",
+            tryAgain: "કૃપા કરીને ફરી પ્રયાસ કરો.",
+            saveReminder: "રિમાઇન્ડર સેટિંગ્સ સેવ કરો",
+            cancel: "રદ કરો",
+            close: "બંધ કરો",
+            chooseLanguage: "તમારી પસંદગીની ભાષા પસંદ કરો.",
+            reminderDescription: "મફત ડિવાઇસ પરના માસિક અને ઓવરડ્યુ રિમાઇન્ડર્સ મેનેજ કરો.",
+            monthlyReminder: "માસિક રિમાઇન્ડર",
+            monthlyReminderDescription: "દર મહિને પસંદ કરેલા દિવસે રિમાઇન્ડ કરો.",
+            monthlyDay: "માસિક દિવસ (1–28)",
+            monthlyTime: "માસિક સમય (HH:MM)",
+            overdueReminder: "ઓવરડ્યુ રિમાઇન્ડર",
+            overdueDescription: "ડ્યુ તારીખ પછી દૈનિક રિમાઇન્ડર.",
+            overdueTime: "ઓવરડ્યુ સમય (HH:MM)",
+            restoreReview: "રિસ્ટોર કરતા પહેલાં તમારો ક્લાઉડ બેકઅપ તપાસો.",
+            restoreCloud: "ક્લાઉડ ડેટા રિસ્ટોર કરો",
+            restoreWarning: "આ ત્રણ લોકલ ડેટા કલેક્શન રિપ્લેસ થશે. તમારો PIN અને રિકવરી ઈમેલ બદલાશે નહીં.",
+            aboutInformation: "એપની માહિતી",
+            changePinSubtitleModal: "તમારો 4 અંકનો સુરક્ષા PIN અપડેટ કરો",
+            disableBiometric: "બાયોમેટ્રિક બંધ કરો",
+            disableBiometricDescription: "બાયોમેટ્રિક અનલોક બંધ કરવા તમારો વર્તમાન PIN દાખલ કરો.",
+            currentPin: "વર્તમાન PIN",
+            newPin: "નવો PIN",
+            confirmNewPin: "નવો PIN ફરી દાખલ કરો",
+            disableBiometricAction: "બાયોમેટ્રિક બંધ કરો",
+            recoveryDescription: "તમારી વેરિફાઇડ રિકવરી ઈમેલ મેનેજ કરો.",
+            recoveryVerified: "વેરિફાઇડ રિકવરી ઈમેલ",
+            verificationRequiredText: "ઈમેલ વેરિફિકેશન જરૂરી છે",
+            recoveryManage: "તમારી રિકવરી ઈમેલ મેનેજ કરો.",
+            noBiometric: "કોઈ બાયોમેટ્રિક સેટ નથી",
+            currentRecoveryEmail: "વર્તમાન રિકવરી ઈમેલ",
+            verified: "✓ વેરિફાઇડ",
+            verificationRequired: "⚠ વેરિફિકેશન જરૂરી",
+            firebasePassword: "Firebase પાસવર્ડ",
+            firebasePasswordDescription: "આ Firebase એકાઉન્ટનો પાસવર્ડ છે, તમારો 4 અંકનો My Mandal PIN નહીં.",
+            connectVerifyEmail: "ઈમેલ કનેક્ટ અને વેરિફાઇ કરો",
+            checkVerification: "વેરિફિકેશન તપાસો",
+            newRecoveryEmail: "નવી રિકવરી ઈમેલ",
+            sendVerification: "વેરિફિકેશન મોકલો",
+            verificationPending: "વેરિફિકેશન પેન્ડિંગ",
+            verifyThisAddress: "આ સરનામું વેરિફાઇ કરો:",
+            checkSaveEmail: "નવી ઈમેલ તપાસો અને સેવ કરો",
+            members: "સભ્યો",
+            monthlyObligations: "માસિક બાકી રકમ",
+            payments: "ચુકવણીઓ",
+            appName: "એપનું નામ",
+            version: "વર્ઝન",
+            currency: "ચલણ",
+            storage: "સ્ટોરેજ",
+            offlineStorage: "ક્લાઉડ સિંક સાથે ઓફલાઇન-ફર્સ્ટ",
+        }
+        : {
+            settings: "Settings",
+            managePreferences: "Manage your Mandal preferences",
+            mandalInformation: "Mandal Information",
+            mandalName: "Mandal Name",
+            adminName: "Admin Name",
+            adminMobile: "Admin Mobile",
+            recoveryEmail: "Recovery Email",
+            security: "Security",
+            changePin: "Change PIN",
+            changePinSubtitle: "Change your 4-digit security PIN",
+            biometricUnlock: "Biometric Unlock",
+            language: "Language",
+            appLanguage: "App Language",
+            notifications: "Notifications",
+            reminderSettings: "Reminder Settings",
+            remindersConfigured: "Reminders are configured",
+            remindersDisabled: "Reminders are disabled",
+            data: "Data",
+            exportData: "Export Data",
+            exportSubtitle: "Export your Mandal records",
+            export: "Export",
+            restoreData: "Restore Data",
+            restoreSubtitle: "Restore your Mandal data from cloud backup",
+            about: "About",
+            aboutMyMandal: "About My Mandal",
+            aboutSubtitle: "App information and version",
+            notAvailable: "Not available",
+            loadingSettings: "Loading settings...",
+            languageSaved: "Language Saved",
+            languageSavedMessage: "Your app language preference has been saved.",
+            error: "Error",
+            unableSaveLanguage: "Unable to save language preference.",
+            reminderSaved: "Reminder Settings Saved",
+            reminderSavedMessage: "Your reminder preferences and device notifications have been saved.",
+            saveReminderError: "Unable to Save Reminders",
+            tryAgain: "Please try again.",
+            saveReminder: "Save Reminder Settings",
+            cancel: "Cancel",
+            close: "Close",
+            chooseLanguage: "Choose your preferred language.",
+            reminderDescription: "Manage free on-device monthly and overdue reminders.",
+            monthlyReminder: "Monthly Reminder",
+            monthlyReminderDescription: "Remind you on the selected day each month.",
+            monthlyDay: "Monthly Day (1–28)",
+            monthlyTime: "Monthly Time (HH:MM)",
+            overdueReminder: "Overdue Reminder",
+            overdueDescription: "Daily reminder after the due date.",
+            overdueTime: "Overdue Time (HH:MM)",
+            restoreReview: "Review your cloud backup before restoring it.",
+            restoreCloud: "Restore Cloud Data",
+            restoreWarning: "Restoring will replace these three local data collections. Your PIN and recovery email will remain unchanged.",
+            aboutInformation: "App information",
+            changePinSubtitleModal: "Update your 4-digit security PIN",
+            disableBiometric: "Disable Biometric",
+            disableBiometricDescription: "Enter your current PIN to disable biometric unlock.",
+            currentPin: "Current PIN",
+            newPin: "New PIN",
+            confirmNewPin: "Confirm New PIN",
+            disableBiometricAction: "Disable Biometric",
+            recoveryDescription: "Manage your verified recovery email.",
+            recoveryVerified: "Verified recovery email",
+            verificationRequiredText: "Email verification required",
+            recoveryManage: "Manage your recovery email",
+            noBiometric: "No enrolled biometric found",
+            currentRecoveryEmail: "Current Recovery Email",
+            verified: "✓ Verified",
+            verificationRequired: "⚠ Verification required",
+            firebasePassword: "Firebase Password",
+            firebasePasswordDescription: "This is the Firebase account password, not your 4-digit My Mandal PIN.",
+            connectVerifyEmail: "Connect & Verify Email",
+            checkVerification: "Check Verification",
+            newRecoveryEmail: "New Recovery Email",
+            sendVerification: "Send Verification",
+            verificationPending: "Verification Pending",
+            verifyThisAddress: "Verify this address:",
+            checkSaveEmail: "Check & Save New Email",
+            members: "Members",
+            monthlyObligations: "Monthly Obligations",
+            payments: "Payments",
+            appName: "App Name",
+            version: "Version",
+            currency: "Currency",
+            storage: "Storage",
+            offlineStorage: "Offline-first with cloud sync",
+        };
+
     const [setupData, setSetupData] =
         useState<MandalSetup | null>(null);
 
@@ -111,6 +314,32 @@ export default function SettingsScreen({
     const [pendingRecoveryEmail, setPendingRecoveryEmail] =
         useState<string | null>(null);
 
+    const navigation = useNavigation<any>();
+
+    const [languageModalVisible, setLanguageModalVisible] =
+        useState(false);
+
+    const [reminderModalVisible, setReminderModalVisible] =
+        useState(false);
+
+    const [reminderSettings, setReminderSettings] =
+        useState<ReminderSettings>(DEFAULT_REMINDER_SETTINGS);
+
+    const [savingReminders, setSavingReminders] =
+        useState(false);
+
+    const [restoreModalVisible, setRestoreModalVisible] =
+        useState(false);
+
+    const [restoreLoading, setRestoreLoading] =
+        useState(false);
+
+    const [restoreData, setRestoreData] =
+        useState<{ members: any[]; obligations: any[]; payments: any[] } | null>(null);
+
+    const [aboutModalVisible, setAboutModalVisible] =
+        useState(false);
+
     useEffect(() => {
         loadSettings();
     }, []);
@@ -130,6 +359,7 @@ export default function SettingsScreen({
 
             await loadBiometricSettings();
             await loadRecoveryStatus();
+            await loadAppPreferences();
         } catch (error) {
             console.error(
                 "Load settings error:",
@@ -241,6 +471,126 @@ export default function SettingsScreen({
             setBiometricAvailable(false);
             setBiometricEnabled(false);
         }
+    };
+
+    // --------------------------------------------------
+    // APP LANGUAGE / REMINDERS / DATA / ABOUT
+    // --------------------------------------------------
+
+    const loadAppPreferences = async () => {
+        try {
+            const storedReminders = await AsyncStorage.getItem(REMINDER_SETTINGS_KEY);
+            if (storedReminders) {
+                const parsed = JSON.parse(storedReminders);
+                setReminderSettings({ ...DEFAULT_REMINDER_SETTINGS, ...parsed });
+            }
+        } catch (error) {
+            console.error("Load app preferences error:", error);
+        }
+    };
+
+    const selectLanguage = async (language: "English" | "Gujarati") => {
+        try {
+            await changeLanguage(language);
+            setLanguageModalVisible(false);
+            Alert.alert(
+                ui.languageSaved,
+                `${language} is now selected as your app language preference.`
+            );
+        } catch (error) {
+            console.error("Change language error:", error);
+            Alert.alert("Error", ui.unableSaveLanguage);
+        }
+    };
+
+    const parseTime = (value: string) => {
+        const parts = value.split(":");
+        const hour = Number(parts[0]);
+        const minute = Number(parts[1]);
+        if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+            return null;
+        }
+        return { hour, minute };
+    };
+
+    const saveReminderSettings = async () => {
+        try {
+            setSavingReminders(true);
+            const next: ReminderSettings = {
+                ...reminderSettings,
+                monthlyDay: Math.min(Math.max(Number(reminderSettings.monthlyDay) || 15, 1), 28),
+                monthlyHour: Math.min(Math.max(Number(reminderSettings.monthlyHour) || 0, 0), 23),
+                monthlyMinute: Math.min(Math.max(Number(reminderSettings.monthlyMinute) || 0, 0), 59),
+                overdueHour: Math.min(Math.max(Number(reminderSettings.overdueHour) || 0, 0), 23),
+                overdueMinute: Math.min(Math.max(Number(reminderSettings.overdueMinute) || 0, 0), 59),
+            };
+            await AsyncStorage.setItem(REMINDER_SETTINGS_KEY, JSON.stringify(next));
+            setReminderSettings(next);
+            setReminderModalVisible(false);
+            Alert.alert(
+                ui.reminderSaved,
+                Constants.appOwnership === "expo"
+                    ? "Your reminder preferences have been saved. Notification scheduling will be active in the installed production/development build."
+                    : ui.reminderSavedMessage
+            );
+        } catch (error: any) {
+            console.error("Save reminder settings error:", error);
+            Alert.alert(ui.saveReminderError, error?.message || ui.tryAgain);
+        } finally {
+            setSavingReminders(false);
+        }
+    };
+
+    const openRestoreData = async () => {
+        if (!auth.currentUser?.emailVerified) {
+            Alert.alert("Recovery Email Verification Required", "Please connect and verify your recovery email before restoring cloud data.");
+            return;
+        }
+        try {
+            setRestoreLoading(true);
+            const data = await getCloudData();
+            setRestoreData(data);
+            setRestoreModalVisible(true);
+        } catch (error: any) {
+            console.error("Load cloud restore data error:", error);
+            Alert.alert("Restore Unavailable", error?.message || "Unable to load your cloud backup.");
+        } finally {
+            setRestoreLoading(false);
+        }
+    };
+
+    const confirmRestoreData = async () => {
+        if (!restoreData) return;
+        Alert.alert(
+            "Confirm Restore",
+            "This will replace the current local Members, Obligations and Payments with the cloud backup. Your local PIN will not be changed.",
+            [
+                { text: ui.cancel, style: "cancel" },
+                {
+                    text: "Restore",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            setRestoreLoading(true);
+                            await AsyncStorage.setItem("mandal_members", JSON.stringify(restoreData.members || []));
+                            await AsyncStorage.setItem("mandal_monthly_obligations", JSON.stringify(restoreData.obligations || []));
+                            await AsyncStorage.setItem("mandal_payments", JSON.stringify(restoreData.payments || []));
+                            // The cloud snapshot becomes the new local source of truth.
+                            // Clear old deletion tombstones so a later sync does not
+                            // immediately delete records that were just restored.
+                            await AsyncStorage.removeItem("mandal_cloud_deleted_records");
+                            setRestoreModalVisible(false);
+                            Alert.alert("Restore Complete", "Your Mandal data has been restored successfully. Your PIN was kept unchanged.");
+                        } catch (error) {
+                            console.error("Restore data error:", error);
+                            Alert.alert("Restore Failed", "Unable to restore cloud data. Your existing local data was not intentionally deleted.");
+                        } finally {
+                            setRestoreLoading(false);
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     // --------------------------------------------------
@@ -411,7 +761,7 @@ export default function SettingsScreen({
                         promptMessage:
                             "Enable Biometric Unlock",
                         cancelLabel:
-                            "Cancel",
+                        ui.cancel,
                         disableDeviceFallback:
                             true,
                     }
@@ -632,7 +982,7 @@ export default function SettingsScreen({
 
                 Alert.alert(
                     "Verification Email Sent",
-                    `A verification email has been sent to ${setupData.email}. Open that email and verify your address, then return here and tap "Check Verification".`
+                    `A verification email has been sent to ${setupData.email}. Open that email and verify your address, then return here and tap ${ui.checkVerification}.`
                 );
             } else {
                 Alert.alert(
@@ -959,9 +1309,9 @@ export default function SettingsScreen({
             ? `Verification pending: ${pendingRecoveryEmail}`
             : auth.currentUser
                 ? firebaseEmailVerified
-                    ? "Verified recovery email"
-                    : "Email verification required"
-                : "Manage your recovery email";
+                    ? ui.recoveryVerified
+                    : ui.verificationRequiredText
+                : ui.recoveryManage;
 
     return (
         <SafeAreaView
@@ -1004,7 +1354,7 @@ export default function SettingsScreen({
                         <Text
                             style={styles.title}
                         >
-                            Settings
+                            {ui.settings}
                         </Text>
 
                         <Text
@@ -1012,54 +1362,53 @@ export default function SettingsScreen({
                                 styles.subtitle
                             }
                         >
-                            Manage your Mandal
-                            preferences
+                            {ui.managePreferences}
                         </Text>
                     </View>
                 </View>
 
                 {/* Mandal Information */}
                 <SettingsSection
-                    title="Mandal Information"
+                    title={ui.mandalInformation}
                 >
                     <InformationRow
-                        title="Mandal Name"
+                        title={ui.mandalName}
                         value={
                             setupData?.mandalName ||
-                            "Not available"
+                            ui.notAvailable
                         }
                     />
 
                     <InformationRow
-                        title="Admin Name"
+                        title={ui.adminName}
                         value={
                             setupData?.adminName ||
-                            "Not available"
+                            ui.notAvailable
                         }
                     />
 
                     <InformationRow
-                        title="Admin Mobile"
+                        title={ui.adminMobile}
                         value={
                             setupData?.mobile ||
-                            "Not available"
+                            ui.notAvailable
                         }
                     />
 
                     <InformationRow
-                        title="Recovery Email"
+                        title={ui.recoveryEmail}
                         value={
                             setupData?.email ||
-                            "Not available"
+                            ui.notAvailable
                         }
                     />
                 </SettingsSection>
 
                 {/* Security */}
-                <SettingsSection title="Security">
+                <SettingsSection title={ui.security}>
                     <SettingsRow
-                        title="Change PIN"
-                        subtitle="Change your 4-digit security PIN"
+                        title={ui.changePin}
+                        subtitle={ui.changePinSubtitle}
                         onPress={() =>
                             setChangePinVisible(
                                 true
@@ -1068,13 +1417,13 @@ export default function SettingsScreen({
                     />
 
                     <SettingsRow
-                        title="Biometric Unlock"
+                        title={ui.biometricUnlock}
                         subtitle={
                             biometricAvailable
                                 ? biometricEnabled
-                                    ? `${biometricType} is enabled`
-                                    : `${biometricType} is available`
-                                : "No enrolled biometric found"
+                                    ? appLanguage === "Gujarati" ? `${biometricType} સક્રિય છે` : `${biometricType} is enabled`
+                                    : appLanguage === "Gujarati" ? `${biometricType} ઉપલબ્ધ છે` : `${biometricType} is available`
+                                : ui.noBiometric
                         }
                         rightComponent={
                             <Switch
@@ -1102,7 +1451,7 @@ export default function SettingsScreen({
                     />
 
                     <SettingsRow
-                        title="Recovery Email"
+                        title={ui.recoveryEmail}
                         subtitle={
                             recoverySubtitle
                         }
@@ -1113,41 +1462,46 @@ export default function SettingsScreen({
                 </SettingsSection>
 
                 {/* Language */}
-                <SettingsSection title="Language">
+                <SettingsSection title={ui.language}>
                     <SettingsRow
-                        title="App Language"
-                        subtitle="English / Gujarati"
+                        title={ui.appLanguage}
+                        subtitle={appLanguage === "Gujarati" ? "Gujarati" : "English"}
+                        onPress={() => setLanguageModalVisible(true)}
                     />
                 </SettingsSection>
 
                 {/* Notifications */}
                 <SettingsSection
-                    title="Notifications"
+                    title={ui.notifications}
                 >
                     <SettingsRow
-                        title="Reminder Settings"
-                        subtitle="Manage monthly and overdue reminders"
+                        title={ui.reminderSettings}
+                        subtitle={reminderSettings.monthlyEnabled || reminderSettings.overdueEnabled ? ui.remindersConfigured : ui.remindersDisabled}
+                        onPress={() => setReminderModalVisible(true)}
                     />
                 </SettingsSection>
 
                 {/* Data */}
-                <SettingsSection title="Data">
+                <SettingsSection title={ui.data}>
                     <SettingsRow
-                        title="Export Data"
-                        subtitle="Export your Mandal records"
+                        title={ui.exportData}
+                        subtitle={ui.exportSubtitle}
+                        onPress={() => navigation.navigate("Export")}
                     />
 
                     <SettingsRow
-                        title="Restore Data"
-                        subtitle="Restore your Mandal data from cloud backup"
+                        title={ui.restoreData}
+                        subtitle={ui.restoreSubtitle}
+                        onPress={openRestoreData}
                     />
                 </SettingsSection>
 
                 {/* About */}
-                <SettingsSection title="About">
+                <SettingsSection title={ui.about}>
                     <SettingsRow
-                        title="About My Mandal"
-                        subtitle="App information and version"
+                        title={ui.aboutMyMandal}
+                        subtitle={ui.aboutSubtitle}
+                        onPress={() => setAboutModalVisible(true)}
                     />
                 </SettingsSection>
 
@@ -1160,9 +1514,136 @@ export default function SettingsScreen({
                         styles.versionNumber
                     }
                 >
-                    Version 1.0.0
+                    {ui.version} 1.0.0
                 </Text>
             </ScrollView>
+
+            {/* Language Modal */}
+            <Modal visible={languageModalVisible} transparent animationType="slide" onRequestClose={() => setLanguageModalVisible(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.smallModalCard}>
+                        <View style={styles.modalHeader}>
+                            <View>
+                                <Text style={styles.modalTitle}>{ui.appLanguage}</Text>
+                                <Text style={styles.modalSubtitle}>{ui.chooseLanguage}</Text>
+                            </View>
+                            <TouchableOpacity style={styles.closeButton} onPress={() => setLanguageModalVisible(false)}>
+                                <Text style={styles.closeButtonText}>×</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {(["English", "Gujarati"] as ("English" | "Gujarati")[]).map((language) => (
+                            <TouchableOpacity key={language} style={[styles.optionRow, appLanguage === language && styles.optionRowSelected]} onPress={() => selectLanguage(language)}>
+                                <Text style={[styles.optionText, appLanguage === language && styles.optionTextSelected]}>{language}</Text>
+                                {appLanguage === language && <Text style={styles.optionCheck}>✓</Text>}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Reminder Settings Modal */}
+            <Modal visible={reminderModalVisible} transparent animationType="slide" onRequestClose={() => setReminderModalVisible(false)}>
+                <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+                    <View style={styles.modalCard}>
+                        <View style={styles.modalHeader}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.modalTitle}>{ui.reminderSettings}</Text>
+                                <Text style={styles.modalSubtitle}>{ui.reminderDescription}</Text>
+                            </View>
+                            <TouchableOpacity style={styles.closeButton} onPress={() => setReminderModalVisible(false)} disabled={savingReminders}>
+                                <Text style={styles.closeButtonText}>×</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.settingLine}>
+                            <View style={styles.settingLineText}>
+                                <Text style={styles.rowTitle}>{ui.monthlyReminder}</Text>
+                                <Text style={styles.rowSubtitle}>{ui.monthlyReminderDescription}</Text>
+                            </View>
+                            <Switch value={reminderSettings.monthlyEnabled} onValueChange={(value) => setReminderSettings((prev) => ({ ...prev, monthlyEnabled: value }))} />
+                        </View>
+
+                        <Text style={styles.inputLabel}>{ui.monthlyDay}</Text>
+                        <TextInput style={styles.textInput} value={String(reminderSettings.monthlyDay)} onChangeText={(value) => setReminderSettings((prev) => ({ ...prev, monthlyDay: Number(value.replace(/[^0-9]/g, "")) || 1 }))} keyboardType="number-pad" maxLength={2} editable={!savingReminders} />
+
+                        <Text style={styles.inputLabel}>{ui.monthlyTime}</Text>
+                        <TextInput style={styles.textInput} value={`${String(reminderSettings.monthlyHour).padStart(2, "0")}:${String(reminderSettings.monthlyMinute).padStart(2, "0")}`} onChangeText={(value) => { const parsed = parseTime(value); if (parsed) setReminderSettings((prev) => ({ ...prev, monthlyHour: parsed.hour, monthlyMinute: parsed.minute })); }} placeholder="10:00" editable={!savingReminders} />
+
+                        <View style={styles.settingLine}>
+                            <View style={styles.settingLineText}>
+                                <Text style={styles.rowTitle}>{ui.overdueReminder}</Text>
+                                <Text style={styles.rowSubtitle}>{ui.overdueDescription}</Text>
+                            </View>
+                            <Switch value={reminderSettings.overdueEnabled} onValueChange={(value) => setReminderSettings((prev) => ({ ...prev, overdueEnabled: value }))} />
+                        </View>
+
+                        <Text style={styles.inputLabel}>{ui.overdueTime}</Text>
+                        <TextInput style={styles.textInput} value={`${String(reminderSettings.overdueHour).padStart(2, "0")}:${String(reminderSettings.overdueMinute).padStart(2, "0")}`} onChangeText={(value) => { const parsed = parseTime(value); if (parsed) setReminderSettings((prev) => ({ ...prev, overdueHour: parsed.hour, overdueMinute: parsed.minute })); }} placeholder="10:00" editable={!savingReminders} />
+
+                        <TouchableOpacity style={[styles.saveButton, savingReminders && styles.buttonDisabled]} onPress={saveReminderSettings} disabled={savingReminders}>
+                            {savingReminders ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>{ui.saveReminder}</Text>}
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.cancelButton} onPress={() => setReminderModalVisible(false)} disabled={savingReminders}>
+                            <Text style={styles.cancelButtonText}>{ui.cancel}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Restore Data Modal */}
+            <Modal visible={restoreModalVisible} transparent animationType="slide" onRequestClose={() => !restoreLoading && setRestoreModalVisible(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.smallModalCard}>
+                        <View style={styles.modalHeader}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.modalTitle}>{ui.restoreData}</Text>
+                                <Text style={styles.modalSubtitle}>{ui.restoreReview}</Text>
+                            </View>
+                            <TouchableOpacity style={styles.closeButton} onPress={() => setRestoreModalVisible(false)} disabled={restoreLoading}>
+                                <Text style={styles.closeButtonText}>×</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {restoreData ? (
+                            <>
+                                <InformationRow title={ui.members} value={String(restoreData.members.length)} />
+                                <InformationRow title={ui.monthlyObligations} value={String(restoreData.obligations.length)} />
+                                <InformationRow title={ui.payments} value={String(restoreData.payments.length)} />
+                                <Text style={styles.restoreWarning}>{ui.restoreWarning}</Text>
+                                <TouchableOpacity style={[styles.saveButton, restoreLoading && styles.buttonDisabled]} onPress={confirmRestoreData} disabled={restoreLoading}>
+                                    {restoreLoading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveButtonText}>{ui.restoreCloud}</Text>}
+                                </TouchableOpacity>
+                            </>
+                        ) : <ActivityIndicator size="large" />}
+                        <TouchableOpacity style={styles.cancelButton} onPress={() => setRestoreModalVisible(false)} disabled={restoreLoading}>
+                            <Text style={styles.cancelButtonText}>{ui.cancel}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* About Modal */}
+            <Modal visible={aboutModalVisible} transparent animationType="slide" onRequestClose={() => setAboutModalVisible(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.smallModalCard}>
+                        <View style={styles.modalHeader}>
+                            <View>
+                                <Text style={styles.modalTitle}>{ui.aboutMyMandal}</Text>
+                                <Text style={styles.modalSubtitle}>{ui.aboutInformation}</Text>
+                            </View>
+                            <TouchableOpacity style={styles.closeButton} onPress={() => setAboutModalVisible(false)}>
+                                <Text style={styles.closeButtonText}>×</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <InformationRow title={ui.appName} value="My Mandal" />
+                        <InformationRow title={ui.version} value="1.0.0" />
+                        <InformationRow title={ui.currency} value="INR" />
+                        <InformationRow title={ui.storage} value={ui.offlineStorage} />
+                        <TouchableOpacity style={styles.cancelButton} onPress={() => setAboutModalVisible(false)}>
+                            <Text style={styles.cancelButtonText}>{ui.close}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
 
             {/* Change PIN Modal */}
             <Modal
@@ -1231,7 +1712,7 @@ export default function SettingsScreen({
                         </View>
 
                         <PinInput
-                            label="Current PIN"
+                            label={ui.currentPin}
                             value={currentPin}
                             onChangeText={
                                 setCurrentPin
@@ -1506,7 +1987,7 @@ export default function SettingsScreen({
                                     styles.currentEmailLabel
                                 }
                             >
-                                Current Recovery Email
+                                {ui.currentRecoveryEmail}
                             </Text>
 
                             <Text
@@ -1515,7 +1996,7 @@ export default function SettingsScreen({
                                 }
                             >
                                 {setupData?.email ||
-                                    "Not available"}
+                                    ui.notAvailable}
                             </Text>
 
                             <Text
@@ -1527,8 +2008,8 @@ export default function SettingsScreen({
                                 ]}
                             >
                                 {firebaseEmailVerified
-                                    ? "✓ Verified"
-                                    : "⚠ Verification required"}
+                                    ? ui.verified
+                                    : ui.verificationRequired}
                             </Text>
                         </View>
 
@@ -2161,6 +2642,62 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: "#9CA3AF",
         marginTop: 4,
+    },
+
+    optionRow: {
+        minHeight: 56,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        paddingHorizontal: 16,
+        marginTop: 10,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        backgroundColor: "#FFFFFF",
+    },
+
+    optionRowSelected: {
+        borderColor: "#2563EB",
+        backgroundColor: "#EFF6FF",
+    },
+
+    optionText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#1A2639",
+    },
+
+    optionTextSelected: {
+        color: "#2563EB",
+    },
+
+    optionCheck: {
+        fontSize: 20,
+        fontWeight: "700",
+        color: "#2563EB",
+    },
+
+    settingLine: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingVertical: 10,
+    },
+
+    settingLineText: {
+        flex: 1,
+        paddingRight: 12,
+    },
+
+    restoreWarning: {
+        marginTop: 14,
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: "#FFF7ED",
+        color: "#9A3412",
+        fontSize: 13,
+        lineHeight: 19,
     },
 
     modalOverlay: {

@@ -15,18 +15,18 @@ import { auth, db } from "./firebase";
 import {
     getDeletedRecordsForSync,
     removeDeletedRecord,
+    type DeletedRecord,
+    type SyncCollection,
 } from "./syncDeletionStorage";
 
 const MEMBERS_KEY = "mandal_members";
+
 const OBLIGATIONS_KEY =
     "mandal_monthly_obligations";
-const PAYMENTS_KEY = "mandal_payments";
-const SETUP_KEY = "mandal_setup";
 
-type SyncCollection =
-    | "members"
-    | "obligations"
-    | "payments";
+const PAYMENTS_KEY = "mandal_payments";
+
+const MANDAL_SETUP_KEY = "mandal_setup";
 
 const COLLECTION_KEYS: Record<
     SyncCollection,
@@ -53,7 +53,9 @@ async function getLocalRecords(
     storageKey: string
 ): Promise<Record<string, any>[]> {
     const json =
-        await AsyncStorage.getItem(storageKey);
+        await AsyncStorage.getItem(
+            storageKey
+        );
 
     if (!json) {
         return [];
@@ -70,22 +72,29 @@ async function getLocalRecords(
     }
 }
 
+/**
+ * Upload all current local records
+ * for a specific collection.
+ */
 async function uploadCollection(
     collectionName: SyncCollection
-) {
+): Promise<void> {
     const uid = getOwnerUid();
 
     const records =
         await getLocalRecords(
-            COLLECTION_KEYS[collectionName]
+            COLLECTION_KEYS[
+                collectionName
+                ]
         );
 
-    const collectionRef = collection(
-        db,
-        "mandals",
-        uid,
-        collectionName
-    );
+    const collectionRef =
+        collection(
+            db,
+            "mandals",
+            uid,
+            collectionName
+        );
 
     for (const record of records) {
         if (!record?.id) {
@@ -107,212 +116,277 @@ async function uploadCollection(
 }
 
 /**
- * Permanently removes all cloud data belonging
- * to a deleted member.
- *
- * This handles the member itself plus all
- * historical obligations and payments.
+ * Delete a payment document from Firebase.
  */
-async function deleteMemberFromCloud(
-    memberId: string
-) {
-    const uid = getOwnerUid();
-
-    /*
-     * 1. Delete the member document.
-     */
+async function deletePaymentFromCloud(
+    uid: string,
+    paymentId: string
+): Promise<void> {
     await deleteDoc(
         doc(
             db,
             "mandals",
             uid,
-            "members",
-            memberId
+            "payments",
+            paymentId
         )
     );
+}
 
-    /*
-     * 2. Find and delete all monthly obligations
-     * belonging to this member.
-     */
-    const obligationsRef =
-        collection(
+/**
+ * Delete an obligation document from Firebase.
+ */
+async function deleteObligationFromCloud(
+    uid: string,
+    obligationId: string
+): Promise<void> {
+    await deleteDoc(
+        doc(
             db,
             "mandals",
             uid,
-            "obligations"
-        );
+            "obligations",
+            obligationId
+        )
+    );
+}
 
-    const obligationsQuery =
-        query(
-            obligationsRef,
-            where(
-                "memberId",
-                "==",
-                memberId
-            )
-        );
+/**
+ * Permanently delete a member from Firebase
+ * together with all of the member's financial records.
+ */
+async function deleteMemberFromCloud(
+    uid: string,
+    memberId: string
+): Promise<void> {
+    const memberRef = doc(
+        db,
+        "mandals",
+        uid,
+        "members",
+        memberId
+    );
+
+    /*
+     * Find all obligations belonging to
+     * this member.
+     */
+    const obligationsRef = collection(
+        db,
+        "mandals",
+        uid,
+        "obligations"
+    );
+
+    const obligationsQuery = query(
+        obligationsRef,
+        where(
+            "memberId",
+            "==",
+            memberId
+        )
+    );
 
     const obligationsSnapshot =
         await getDocs(
             obligationsQuery
         );
 
-    for (
-        const obligation
-        of obligationsSnapshot.docs
-        ) {
-        await deleteDoc(
-            obligation.ref
-        );
-    }
-
     /*
-     * 3. Find and delete all payments
-     * belonging to this member.
+     * Find all payments belonging to
+     * this member.
      */
-    const paymentsRef =
-        collection(
-            db,
-            "mandals",
-            uid,
-            "payments"
-        );
+    const paymentsRef = collection(
+        db,
+        "mandals",
+        uid,
+        "payments"
+    );
 
-    const paymentsQuery =
-        query(
-            paymentsRef,
-            where(
-                "memberId",
-                "==",
-                memberId
-            )
-        );
+    const paymentsQuery = query(
+        paymentsRef,
+        where(
+            "memberId",
+            "==",
+            memberId
+        )
+    );
 
     const paymentsSnapshot =
         await getDocs(
             paymentsQuery
         );
 
-    for (
-        const payment
-        of paymentsSnapshot.docs
-        ) {
-        await deleteDoc(
-            payment.ref
-        );
-    }
+    /*
+     * Delete all obligations.
+     */
+    await Promise.all(
+        obligationsSnapshot.docs.map(
+            (item) =>
+                deleteDoc(item.ref)
+        )
+    );
+
+    /*
+     * Delete all payments.
+     */
+    await Promise.all(
+        paymentsSnapshot.docs.map(
+            (item) =>
+                deleteDoc(item.ref)
+        )
+    );
+
+    /*
+     * Finally delete the member itself.
+     */
+    await deleteDoc(memberRef);
 }
 
 /**
- * Processes locally recorded permanent deletions.
+ * Process all locally recorded deletions.
  *
- * A deletion marker is removed locally only after
- * the corresponding cloud deletion succeeds.
+ * Deletions are handled before uploads so an old
+ * cloud record cannot remain after it was removed locally.
  */
-async function processDeletedRecords() {
+async function processDeletedRecords(): Promise<void> {
+    const uid = getOwnerUid();
+
     const deletedRecords =
         await getDeletedRecordsForSync();
 
-    for (
-        const record
-        of deletedRecords
-        ) {
-        if (
-            record.collection ===
-            "members"
-        ) {
-            await deleteMemberFromCloud(
-                record.id
-            );
+    for (const record of deletedRecords) {
+        try {
+            if (
+                record.collection ===
+                "members"
+            ) {
+                /*
+                 * Member deletion also removes
+                 * all related obligations and payments.
+                 */
+                await deleteMemberFromCloud(
+                    uid,
+                    record.id
+                );
+            } else if (
+                record.collection ===
+                "payments"
+            ) {
+                await deletePaymentFromCloud(
+                    uid,
+                    record.id
+                );
+            } else if (
+                record.collection ===
+                "obligations"
+            ) {
+                await deleteObligationFromCloud(
+                    uid,
+                    record.id
+                );
+            }
 
+            /*
+             * Only remove the local deletion marker
+             * after Firebase deletion succeeds.
+             */
             await removeDeletedRecord(
                 record.collection,
                 record.id
             );
-
-            continue;
+        } catch (error) {
+            /*
+             * Keep the deletion marker if Firebase
+             * deletion fails. It will be retried
+             * during the next sync.
+             */
+            console.error(
+                "Cloud deletion failed:",
+                record,
+                error
+            );
         }
-
-        /*
-         * These are included for future
-         * individual-record deletion support.
-         */
-        await deleteDoc(
-            doc(
-                db,
-                "mandals",
-                getOwnerUid(),
-                record.collection,
-                record.id
-            )
-        );
-
-        await removeDeletedRecord(
-            record.collection,
-            record.id
-        );
     }
 }
 
 /**
- * Uploads local Mandal information.
+ * Upload Mandal information to the cloud.
  *
- * The local PIN is deliberately never uploaded.
+ * The PIN is intentionally never uploaded.
  */
-async function uploadMandalInfo() {
+async function uploadMandalInfo(): Promise<void> {
     const uid = getOwnerUid();
 
-    const setupJson =
+    const json =
         await AsyncStorage.getItem(
-            SETUP_KEY
+            MANDAL_SETUP_KEY
         );
 
-    if (!setupJson) {
+    if (!json) {
         return;
     }
 
-    const setupData =
-        JSON.parse(setupJson);
+    try {
+        const setup =
+            JSON.parse(json);
 
-    const {
-        pin,
-        ...safeSetupData
-    } = setupData;
-
-    const mandalRef = doc(
-        db,
-        "mandals",
-        uid
-    );
-
-    await setDoc(
-        mandalRef,
-        {
-            ...safeSetupData,
-
-            cloudBackupEnabled: true,
-
-            lastSyncedAt:
-                new Date().toISOString(),
-
-            updatedAt:
-                new Date().toISOString(),
-        },
-        {
-            merge: true,
+        if (!setup) {
+            return;
         }
-    );
+
+        /*
+         * Never store the local PIN in Firebase.
+         */
+        const {
+            pin: _pin,
+            ...safeSetup
+        } = setup;
+
+        await setDoc(
+            doc(
+                db,
+                "mandals",
+                uid
+            ),
+            {
+                ...safeSetup,
+                cloudBackupEnabled:
+                    true,
+                lastSyncedAt:
+                    new Date().toISOString(),
+            },
+            {
+                merge: true,
+            }
+        );
+    } catch (error) {
+        console.error(
+            "Upload Mandal info error:",
+            error
+        );
+
+        throw error;
+    }
 }
 
-export async function syncLocalDataToCloud() {
+/**
+ * Complete one cloud synchronization cycle.
+ *
+ * Order:
+ *
+ * 1. Process deletions
+ * 2. Upload Mandal information
+ * 3. Upload members
+ * 4. Upload obligations
+ * 5. Upload payments
+ */
+export async function syncLocalDataToCloud(): Promise<boolean> {
     getOwnerUid();
 
     /*
-     * Process deletions FIRST.
-     *
-     * This prevents deleted records from being
-     * accidentally recreated during the upload.
+     * IMPORTANT:
+     * Deletions must happen first.
      */
     await processDeletedRecords();
 
@@ -322,7 +396,7 @@ export async function syncLocalDataToCloud() {
     await uploadMandalInfo();
 
     /*
-     * Sync current local collections.
+     * Sync current local records.
      */
     await uploadCollection(
         "members"
@@ -336,29 +410,56 @@ export async function syncLocalDataToCloud() {
         "payments"
     );
 
-    /*
-     * Record the successful sync time.
-     */
-    const uid = getOwnerUid();
-
-    await setDoc(
-        doc(
-            db,
-            "mandals",
-            uid
-        ),
-        {
-            lastSyncedAt:
-                new Date().toISOString(),
-        },
-        {
-            merge: true,
-        }
-    );
-
     return true;
 }
 
+/**
+ * Prevent multiple simultaneous cloud syncs.
+ *
+ * If several local changes happen quickly,
+ * they are queued into the same sync cycle.
+ */
+let syncPromise:
+    Promise<boolean> | null = null;
+
+let syncRequested = false;
+
+export function triggerCloudSync(): Promise<boolean> {
+    syncRequested = true;
+
+    if (syncPromise) {
+        return syncPromise;
+    }
+
+    syncPromise = (async () => {
+        while (syncRequested) {
+            syncRequested = false;
+
+            try {
+                await syncLocalDataToCloud();
+
+                console.log(
+                    "My Mandal: automatic cloud sync completed."
+                );
+            } catch (error) {
+                console.log(
+                    "My Mandal: automatic cloud sync skipped/failed:",
+                    error
+                );
+            }
+        }
+
+        return true;
+    })().finally(() => {
+        syncPromise = null;
+    });
+
+    return syncPromise;
+}
+
+/**
+ * Download one cloud collection.
+ */
 async function downloadCollection(
     collectionName: SyncCollection
 ) {
@@ -379,6 +480,9 @@ async function downloadCollection(
     );
 }
 
+/**
+ * Get the complete current cloud data.
+ */
 export async function getCloudData() {
     getOwnerUid();
 
@@ -405,13 +509,4 @@ export async function getCloudData() {
         obligations,
         payments,
     };
-}
-
-export async function triggerCloudSync() {
-    try {
-        await syncLocalDataToCloud();
-        console.log("My Mandal: automatic cloud sync completed.");
-    } catch (error) {
-        console.log("My Mandal: automatic cloud sync skipped/failed:", error);
-    }
 }

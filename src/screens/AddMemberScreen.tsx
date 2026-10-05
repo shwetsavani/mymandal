@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+
 import {
     Alert,
     KeyboardAvoidingView,
@@ -12,9 +13,14 @@ import {
 } from "react-native";
 
 import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
+import type {
+    NativeStackNavigationProp,
+} from "@react-navigation/native-stack";
 
 import { addMember } from "../database/memberStorage";
+
+import { useLanguage } from "../localization/LanguageContext";
 
 type RootStackParamList = {
     Home: undefined;
@@ -23,45 +29,152 @@ type RootStackParamList = {
 };
 
 type AddMemberNavigationProp =
-    NativeStackNavigationProp<RootStackParamList, "AddMember">;
+    NativeStackNavigationProp<
+        RootStackParamList,
+        "AddMember"
+    >;
 
 export default function AddMemberScreen() {
-    const navigation = useNavigation<AddMemberNavigationProp>();
+    const navigation =
+        useNavigation<AddMemberNavigationProp>();
 
-    const [name, setName] = useState("");
-    const [mobile, setMobile] = useState("");
-    const [monthlyInstallment, setMonthlyInstallment] = useState("");
-    const [saving, setSaving] = useState(false);
+    const { language, t } = useLanguage();
+
+    const [name, setName] =
+        useState("");
+
+    const [mobile, setMobile] =
+        useState("");
+
+    const [monthlyInstallment, setMonthlyInstallment] =
+        useState("");
+
+    const [saving, setSaving] =
+        useState(false);
+
+    const isGujarati =
+        language === "Gujarati";
+
+    const text = isGujarati
+        ? {
+            title: "સભ્ય ઉમેરો",
+            subtitle:
+                "નીચે સભ્યની વિગતો દાખલ કરો.",
+            name: "નામ",
+            mobile: "મોબાઇલ નંબર",
+            installment:
+                "માસિક હપ્તો",
+            namePlaceholder:
+                "સભ્યનું નામ દાખલ કરો",
+            mobilePlaceholder:
+                "મોબાઇલ નંબર દાખલ કરો",
+            amountPlaceholder:
+                "રકમ દાખલ કરો",
+            required: "જરૂરી",
+            enterName:
+                "કૃપા કરીને સભ્યનું નામ દાખલ કરો.",
+            enterMobile:
+                "કૃપા કરીને મોબાઇલ નંબર દાખલ કરો.",
+            enterInstallment:
+                "કૃપા કરીને માસિક હપ્તો દાખલ કરો.",
+            invalidAmount:
+                "અમાન્ય રકમ",
+            validInstallment:
+                "કૃપા કરીને માન્ય માસિક હપ્તો દાખલ કરો.",
+            memberAdded:
+                "સભ્ય ઉમેરાયો",
+            addedSuccessfully:
+                "સફળતાપૂર્વક ઉમેરવામાં આવ્યો છે.",
+            saveError:
+                "સભ્ય સાચવી શક્યા નથી. કૃપા કરીને ફરી પ્રયાસ કરો.",
+            ok: "બરાબર",
+            saving: "સાચવી રહ્યું છે...",
+            saveMember:
+                "સભ્ય સાચવો",
+        }
+        : {
+            title: "Add Member",
+            subtitle:
+                "Enter the member details below.",
+            name: "Name",
+            mobile: "Mobile Number",
+            installment:
+                "Monthly Installment",
+            namePlaceholder:
+                "Enter member name",
+            mobilePlaceholder:
+                "Enter mobile number",
+            amountPlaceholder:
+                "Enter amount",
+            required: "Required",
+            enterName:
+                "Please enter member name.",
+            enterMobile:
+                "Please enter mobile number.",
+            enterInstallment:
+                "Please enter monthly installment.",
+            invalidAmount:
+                "Invalid Amount",
+            validInstallment:
+                "Please enter a valid monthly installment.",
+            memberAdded:
+                "Member Added",
+            addedSuccessfully:
+                "has been added successfully.",
+            saveError:
+                "Unable to save the member. Please try again.",
+            ok: "OK",
+            saving: "Saving...",
+            saveMember:
+                "Save Member",
+        };
 
     const handleSave = async () => {
-        const trimmedName = name.trim();
-        const trimmedMobile = mobile.trim();
-        const trimmedInstallment = monthlyInstallment.trim();
+        const trimmedName =
+            name.trim();
+
+        const trimmedMobile =
+            mobile.trim();
+
+        const trimmedInstallment =
+            monthlyInstallment.trim();
 
         if (!trimmedName) {
-            Alert.alert("Required", "Please enter member name.");
+            Alert.alert(
+                text.required,
+                text.enterName
+            );
             return;
         }
 
         if (!trimmedMobile) {
-            Alert.alert("Required", "Please enter mobile number.");
+            Alert.alert(
+                text.required,
+                text.enterMobile
+            );
             return;
         }
 
         if (!trimmedInstallment) {
             Alert.alert(
-                "Required",
-                "Please enter monthly installment."
+                text.required,
+                text.enterInstallment
             );
             return;
         }
 
-        const installment = Number(trimmedInstallment);
+        const installment =
+            Number(trimmedInstallment);
 
-        if (!Number.isFinite(installment) || installment <= 0) {
+        if (
+            !Number.isFinite(
+                installment
+            ) ||
+            installment <= 0
+        ) {
             Alert.alert(
-                "Invalid Amount",
-                "Please enter a valid monthly installment."
+                text.invalidAmount,
+                text.validInstallment
             );
             return;
         }
@@ -76,23 +189,30 @@ export default function AddMemberScreen() {
             );
 
             Alert.alert(
-                "Member Added",
-                `${trimmedName} has been added successfully.`,
+                text.memberAdded,
+                isGujarati
+                    ? `${trimmedName} ${text.addedSuccessfully}`
+                    : `${trimmedName} ${text.addedSuccessfully}`,
                 [
                     {
-                        text: "OK",
+                        text: text.ok,
                         onPress: () => {
-                            navigation.navigate("Members");
+                            navigation.navigate(
+                                "Members"
+                            );
                         },
                     },
                 ]
             );
         } catch (error) {
-            console.error("Add member error:", error);
+            console.error(
+                "Add member error:",
+                error
+            );
 
             Alert.alert(
-                "Error",
-                "Unable to save the member. Please try again."
+                t.common.error,
+                text.saveError
             );
         } finally {
             setSaving(false);
@@ -102,26 +222,38 @@ export default function AddMemberScreen() {
     return (
         <KeyboardAvoidingView
             style={styles.container}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior={
+                Platform.OS === "ios"
+                    ? "padding"
+                    : undefined
+            }
         >
             <ScrollView
-                contentContainerStyle={styles.content}
+                contentContainerStyle={
+                    styles.content
+                }
                 keyboardShouldPersistTaps="handled"
             >
-                <Text style={styles.title}>Add Member</Text>
+                <Text style={styles.title}>
+                    {text.title}
+                </Text>
 
                 <Text style={styles.subtitle}>
-                    Enter the member details below.
+                    {text.subtitle}
                 </Text>
 
                 {/* Name */}
                 <View style={styles.field}>
-                    <Text style={styles.label}>Name</Text>
+                    <Text style={styles.label}>
+                        {text.name}
+                    </Text>
 
                     <TextInput
                         value={name}
                         onChangeText={setName}
-                        placeholder="Enter member name"
+                        placeholder={
+                            text.namePlaceholder
+                        }
                         placeholderTextColor="#9CA3AF"
                         style={styles.input}
                         autoCapitalize="words"
@@ -130,12 +262,16 @@ export default function AddMemberScreen() {
 
                 {/* Mobile */}
                 <View style={styles.field}>
-                    <Text style={styles.label}>Mobile Number</Text>
+                    <Text style={styles.label}>
+                        {text.mobile}
+                    </Text>
 
                     <TextInput
                         value={mobile}
                         onChangeText={setMobile}
-                        placeholder="Enter mobile number"
+                        placeholder={
+                            text.mobilePlaceholder
+                        }
                         placeholderTextColor="#9CA3AF"
                         style={styles.input}
                         keyboardType="phone-pad"
@@ -145,13 +281,19 @@ export default function AddMemberScreen() {
                 {/* Monthly Installment */}
                 <View style={styles.field}>
                     <Text style={styles.label}>
-                        Monthly Installment
+                        {text.installment}
                     </Text>
 
                     <TextInput
-                        value={monthlyInstallment}
-                        onChangeText={setMonthlyInstallment}
-                        placeholder="Enter amount"
+                        value={
+                            monthlyInstallment
+                        }
+                        onChangeText={
+                            setMonthlyInstallment
+                        }
+                        placeholder={
+                            text.amountPlaceholder
+                        }
                         placeholderTextColor="#9CA3AF"
                         style={styles.input}
                         keyboardType="numeric"
@@ -161,13 +303,20 @@ export default function AddMemberScreen() {
                 <TouchableOpacity
                     style={[
                         styles.saveButton,
-                        saving && styles.disabledButton,
+                        saving &&
+                        styles.disabledButton,
                     ]}
                     onPress={handleSave}
                     disabled={saving}
                 >
-                    <Text style={styles.saveButtonText}>
-                        {saving ? "Saving..." : "Save Member"}
+                    <Text
+                        style={
+                            styles.saveButtonText
+                        }
+                    >
+                        {saving
+                            ? text.saving
+                            : text.saveMember}
                     </Text>
                 </TouchableOpacity>
             </ScrollView>

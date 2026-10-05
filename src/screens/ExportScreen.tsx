@@ -13,6 +13,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useLanguage } from "../localization/LanguageContext";
 
 type Member = {
     id: string;
@@ -73,11 +74,18 @@ const MEMBERS_KEY = "mandal_members";
 const OBLIGATIONS_KEY = "mandal_monthly_obligations";
 const PAYMENTS_KEY = "mandal_payments";
 
-const months = [
-    "January", "February", "March", "April",
-    "May", "June", "July", "August",
-    "September", "October", "November", "December",
-];
+const months = {
+    English: [
+        "January", "February", "March", "April",
+        "May", "June", "July", "August",
+        "September", "October", "November", "December",
+    ],
+    Gujarati: [
+        "જાન્યુઆરી", "ફેબ્રુઆરી", "માર્ચ", "એપ્રિલ",
+        "મે", "જૂન", "જુલાઈ", "ઓગસ્ટ",
+        "સપ્ટેમ્બર", "ઓક્ટોબર", "નવેમ્બર", "ડિસેમ્બર",
+    ],
+};
 
 const escapeCsv = (value: unknown) => {
     const text = String(value ?? "");
@@ -90,7 +98,8 @@ const money = (value: number) =>
 const buildRows = (
     members: Member[],
     obligations: Obligation[],
-    payments: Payment[]
+    payments: Payment[],
+    monthNames: string[]
 ): ExportRow[] => {
     return obligations.flatMap(
         (obligation): ExportRow[] => {
@@ -115,7 +124,7 @@ const buildRows = (
                     mobile: member?.mobile ?? "",
                     year: obligation.year,
                     month:
-                        months[obligation.month - 1] ??
+                        monthNames[obligation.month - 1] ??
                         String(obligation.month),
                     originalInstallment:
                     obligation.originalInstallment,
@@ -141,7 +150,7 @@ const buildRows = (
                     mobile: member?.mobile ?? "",
                     year: obligation.year,
                     month:
-                        months[obligation.month - 1] ??
+                        monthNames[obligation.month - 1] ??
                         String(obligation.month),
                     originalInstallment:
                     obligation.originalInstallment,
@@ -291,6 +300,71 @@ const rowsToHtml = (
 
 export default function ExportScreen() {
     const navigation = useNavigation();
+    const { language } = useLanguage();
+
+    const monthNames = months[language];
+
+    const text = language === "Gujarati"
+        ? {
+            back: "← પાછા",
+            title: "ડેટા એક્સપોર્ટ",
+            subtitle: "તમારા મંડળના રેકોર્ડ CSV અથવા PDF તરીકે એક્સપોર્ટ કરો.",
+            exportScope: "એક્સપોર્ટનો પ્રકાર",
+            month: "મહિનો",
+            year: "વર્ષ",
+            all: "બધા",
+            includedTitle: "એક્સપોર્ટમાં સમાવિષ્ટ",
+            includedText:
+                "સભ્યની વિગતો, મૂળ હપ્તો, દંડ, કુલ બાકી, ભરેલ રકમ, બાકી રકમ, ચુકવણી તારીખો, આંશિક ચુકવણીઓ અને મેન્યુઅલ ઓવરરાઇડ વિગતો.",
+            exportCsv: "CSV એક્સપોર્ટ",
+            exportPdf: "PDF એક્સપોર્ટ",
+            csvHint: "Excel સાથે સુસંગત સ્પ્રેડશીટ ફોર્મેટ",
+            pdfHint: "પ્રિન્ટ અથવા શેર કરી શકાય તેવો રિપોર્ટ",
+            loading: "એક્સપોર્ટ ડેટા લોડ થઈ રહ્યો છે...",
+            error: "ભૂલ",
+            loadError: "એક્સપોર્ટ માટે ડેટા લોડ કરી શકાયું નથી.",
+            noData: "ડેટા ઉપલબ્ધ નથી",
+            noDataMessage: "પસંદ કરેલા એક્સપોર્ટ માટે કોઈ ડેટા ઉપલબ્ધ નથી.",
+            sharingUnavailable: "શેરિંગ ઉપલબ્ધ નથી",
+            sharingMessage: "આ ડિવાઇસ પર શેરિંગ ઉપલબ્ધ નથી.",
+            exportError: "એક્સપોર્ટ ભૂલ",
+            csvError: "CSV એક્સપોર્ટ બનાવી શકાયું નથી.",
+            pdfSharingMessage: "PDF બનાવવામાં આવી છે, પરંતુ આ ડિવાઇસ પર શેરિંગ ઉપલબ્ધ નથી.",
+            pdfError: "PDF એક્સપોર્ટ ભૂલ",
+            exportCsvDialog: "My Mandal CSV એક્સપોર્ટ",
+            exportPdfDialog: "My Mandal PDF એક્સપોર્ટ",
+            allHistory: "My Mandal - તમામ ઐતિહાસિક ડેટા",
+        }
+        : {
+            back: "← Back",
+            title: "Export Data",
+            subtitle: "Export your Mandal records as CSV or PDF.",
+            exportScope: "Export Scope",
+            month: "Month",
+            year: "Year",
+            all: "All",
+            includedTitle: "Included in export",
+            includedText:
+                "Member details, original installment, penalty, total due, paid, pending, payment dates, partial payments, and manual override details.",
+            exportCsv: "Export CSV",
+            exportPdf: "Export PDF",
+            csvHint: "Excel-compatible spreadsheet format",
+            pdfHint: "Printable/shareable report",
+            loading: "Loading export data...",
+            error: "Error",
+            loadError: "Unable to load data for export.",
+            noData: "No Data",
+            noDataMessage: "There is no data available for the selected export.",
+            sharingUnavailable: "Sharing Unavailable",
+            sharingMessage: "Sharing is not available on this device.",
+            exportError: "Export Error",
+            csvError: "Unable to create the CSV export.",
+            pdfSharingMessage: "The PDF was created, but sharing is not available on this device.",
+            pdfError: "PDF Export Error",
+            exportCsvDialog: "Export My Mandal CSV",
+            exportPdfDialog: "Export My Mandal PDF",
+            allHistory: "My Mandal - All Historical Data",
+        };
 
     const [loading, setLoading] = useState(true);
     const [year, setYear] = useState(new Date().getFullYear());
@@ -327,8 +401,8 @@ export default function ExportScreen() {
         } catch (error) {
             console.error("Export load error:", error);
             Alert.alert(
-                "Error",
-                "Unable to load data for export."
+                text.error,
+                text.loadError
             );
         } finally {
             setLoading(false);
@@ -370,7 +444,8 @@ export default function ExportScreen() {
         return buildRows(
             members,
             filteredObligations,
-            filteredPayments
+            filteredPayments,
+            monthNames
         );
     };
 
@@ -380,8 +455,8 @@ export default function ExportScreen() {
 
             if (rows.length === 0) {
                 Alert.alert(
-                    "No Data",
-                    "There is no data available for the selected export."
+                    text.noData,
+                    text.noDataMessage
                 );
                 return;
             }
@@ -390,8 +465,8 @@ export default function ExportScreen() {
 
             if (!(await Sharing.isAvailableAsync())) {
                 Alert.alert(
-                    "Sharing Unavailable",
-                    "Sharing is not available on this device."
+                    text.sharingUnavailable,
+                    text.sharingMessage
                 );
                 return;
             }
@@ -409,14 +484,14 @@ export default function ExportScreen() {
 
             await Sharing.shareAsync(fileUri, {
                 mimeType: "text/csv",
-                dialogTitle: "Export My Mandal CSV",
+                dialogTitle: text.exportCsvDialog,
                 UTI: "public.comma-separated-values-text",
             });
         } catch (error) {
             console.error("CSV export error:", error);
             Alert.alert(
-                "Export Error",
-                "Unable to create the CSV export."
+                text.exportError,
+                text.csvError
             );
         }
     };
@@ -427,18 +502,18 @@ export default function ExportScreen() {
 
             if (rows.length === 0) {
                 Alert.alert(
-                    "No Data",
-                    "There is no data available for the selected export."
+                    text.noData,
+                    text.noDataMessage
                 );
                 return;
             }
 
             const title =
                 scope === "month"
-                    ? `My Mandal - ${months[month - 1]} ${year}`
+                    ? `My Mandal - ${monthNames[month - 1]} ${year}`
                     : scope === "year"
                         ? `My Mandal - ${year}`
-                        : "My Mandal - All Historical Data";
+                        : text.allHistory;
 
             const { base64 } = await Print.printToFileAsync({
                 html: rowsToHtml(rows, title),
@@ -473,15 +548,15 @@ export default function ExportScreen() {
 
             if (!sharingAvailable) {
                 Alert.alert(
-                    "Sharing Unavailable",
-                    "The PDF was created, but sharing is not available on this device."
+                    text.sharingUnavailable,
+                    text.pdfSharingMessage
                 );
                 return;
             }
 
             await Sharing.shareAsync(fileUri, {
                 mimeType: "application/pdf",
-                dialogTitle: "Export My Mandal PDF",
+                dialogTitle: text.exportPdfDialog,
                 UTI: "com.adobe.pdf",
             });
         } catch (error) {
@@ -493,7 +568,7 @@ export default function ExportScreen() {
                     : String(error);
 
             Alert.alert(
-                "PDF Export Error",
+                text.pdfError,
                 message
             );
         }
@@ -504,7 +579,7 @@ export default function ExportScreen() {
             <View style={styles.loading}>
                 <ActivityIndicator size="large" />
                 <Text style={styles.loadingText}>
-                    Loading export data...
+                    {text.loading}
                 </Text>
             </View>
         );
@@ -519,28 +594,30 @@ export default function ExportScreen() {
                     onPress={() => navigation.goBack()}
                 >
                     <Text style={styles.back}>
-                        ← Back
+                        {text.back}
                     </Text>
                 </TouchableOpacity>
 
                 <Text style={styles.title}>
-                    Export Data
+                    {text.title}
                 </Text>
 
                 <Text style={styles.subtitle}>
-                    Export your Mandal records as CSV or PDF.
+                    {text.subtitle}
                 </Text>
 
                 <Text style={styles.sectionTitle}>
-                    Export Scope
+                    {text.exportScope}
                 </Text>
 
                 <View style={styles.scopeRow}>
-                    {[
-                        ["month", "Month"],
-                        ["year", "Year"],
-                        ["all", "All"],
-                    ].map(([value, label]) => (
+                    {(
+                        [
+                            ["month", text.month],
+                            ["year", text.year],
+                            ["all", text.all],
+                        ] as Array<["month" | "year" | "all", string]>
+                    ).map(([value, label]) => (
                         <TouchableOpacity
                             key={value}
                             style={[
@@ -616,11 +693,8 @@ export default function ExportScreen() {
                                     styles.monthRow
                                 }
                             >
-                                {months.map(
-                                    (
-                                        name,
-                                        index
-                                    ) => (
+                                {monthNames.map(
+                                    (name: string, index: number) => (
                                         <TouchableOpacity
                                             key={name}
                                             style={[
@@ -661,13 +735,10 @@ export default function ExportScreen() {
 
                 <View style={styles.infoCard}>
                     <Text style={styles.infoTitle}>
-                        Included in export
+                        {text.includedTitle}
                     </Text>
                     <Text style={styles.infoText}>
-                        Member details, original installment,
-                        penalty, total due, paid, pending,
-                        payment dates, partial payments, and
-                        manual override details.
+                        {text.includedText}
                     </Text>
                 </View>
 
@@ -676,10 +747,10 @@ export default function ExportScreen() {
                     onPress={exportCsv}
                 >
                     <Text style={styles.exportButtonText}>
-                        Export CSV
+                        {text.exportCsv}
                     </Text>
                     <Text style={styles.exportHint}>
-                        Excel-compatible spreadsheet format
+                        {text.csvHint}
                     </Text>
                 </TouchableOpacity>
 
@@ -688,10 +759,10 @@ export default function ExportScreen() {
                     onPress={exportPdf}
                 >
                     <Text style={styles.exportButtonText}>
-                        Export PDF
+                        {text.exportPdf}
                     </Text>
                     <Text style={styles.exportHint}>
-                        Printable/shareable report
+                        {text.pdfHint}
                     </Text>
                 </TouchableOpacity>
             </ScrollView>

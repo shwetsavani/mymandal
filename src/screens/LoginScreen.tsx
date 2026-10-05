@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
+import { useLanguage } from "../localization/LanguageContext";
 
 type Props = {
     onLoginSuccess: () => void;
@@ -30,6 +31,53 @@ const MAX_FAILED_ATTEMPTS = 5;
 export default function LoginScreen({
                                         onLoginSuccess,
                                     }: Props) {
+    const { language } = useLanguage();
+
+    const text =
+        language === "Gujarati"
+            ? {
+                title: "My Mandal",
+                checkingUnlock: "અનલોક વિકલ્પો તપાસી રહ્યા છીએ...",
+                appLocked: "એપ લોક છે",
+                tooManyAttempts: "ઘણા ખોટા PIN પ્રયાસો થયા છે.",
+                waitBeforeTrying: "ફરી પ્રયાસ કરતા પહેલા રાહ જુઓ.",
+                enterPin: "તમારો 4 અંકનો PIN દાખલ કરો",
+                unlock: "અનલોક કરો",
+                usePin: "PIN નો ઉપયોગ કરો",
+                unlockBiometric: "My Mandal અનલોક કરો",
+                invalidPin: "અમાન્ય PIN",
+                invalidPinMessage: "કૃપા કરીને તમારો 4 અંકનો PIN દાખલ કરો.",
+                error: "ભૂલ",
+                setupNotFound: "સેટઅપ ડેટા મળ્યો નથી.",
+                lockedFiveMinutes:
+                    "તમે 5 વખત ખોટો PIN દાખલ કર્યો છે.\\n\\nએપ 5 મિનિટ માટે લોક કરવામાં આવી છે.",
+                incorrectPin: "ખોટો PIN",
+                correctPinMessage: "કૃપા કરીને સાચો PIN દાખલ કરો.",
+                attemptsRemaining: "પ્રયાસ બાકી.",
+                somethingWentWrong: "PIN તપાસતી વખતે કંઈક ખોટું થયું.",
+            }
+            : {
+                title: "My Mandal",
+                checkingUnlock: "{text.checkingUnlock}",
+                appLocked: "App Locked",
+                tooManyAttempts: "Too many incorrect PIN attempts.",
+                waitBeforeTrying: "Please wait before trying again.",
+                enterPin: "Enter your 4-digit PIN",
+                unlock: "Unlock",
+                usePin: "Use PIN",
+                unlockBiometric: "Unlock My Mandal",
+                invalidPin: "Invalid PIN",
+                invalidPinMessage: "Please enter your 4-digit PIN.",
+                error: "Error",
+                setupNotFound: "Setup data not found.",
+                lockedFiveMinutes:
+                    "You entered the wrong PIN 5 times.\\n\\nThe app is locked for 5 minutes.",
+                incorrectPin: "Incorrect PIN",
+                correctPinMessage: "Please enter the correct PIN.",
+                attemptsRemaining: "attempts remaining.",
+                somethingWentWrong: "Something went wrong while checking the PIN.",
+            };
+
     const [pin, setPin] = useState("");
     const [isLocked, setIsLocked] = useState(false);
     const [remainingSeconds, setRemainingSeconds] = useState(0);
@@ -211,8 +259,8 @@ export default function LoginScreen({
 
                 const result =
                     await LocalAuthentication.authenticateAsync({
-                        promptMessage: "Unlock My Mandal",
-                        cancelLabel: "Use PIN",
+                        promptMessage: text.unlockBiometric,
+                        cancelLabel: text.usePin,
                         disableDeviceFallback: true,
                     });
 
@@ -377,8 +425,8 @@ export default function LoginScreen({
     const handleLogin = async () => {
         if (isLocked) {
             Alert.alert(
-                "App Locked",
-                `Too many incorrect PIN attempts.\n\nPlease try again in ${formatRemainingTime()}.`
+                text.appLocked,
+                `${text.tooManyAttempts}\n\nPlease try again in ${formatRemainingTime()}.`
             );
 
             return;
@@ -386,8 +434,8 @@ export default function LoginScreen({
 
         if (pin.length !== 4) {
             Alert.alert(
-                "Invalid PIN",
-                "Please enter your 4-digit PIN."
+                text.invalidPin,
+                text.invalidPinMessage
             );
 
             return;
@@ -400,8 +448,8 @@ export default function LoginScreen({
                 setPin("");
 
                 Alert.alert(
-                    "App Locked",
-                    `Please try again in ${formatRemainingTime()}.`
+                    text.appLocked,
+                    `${text.waitBeforeTrying}\n\n${formatRemainingTime()}`
                 );
 
                 return;
@@ -413,8 +461,8 @@ export default function LoginScreen({
 
             if (!storedSetup) {
                 Alert.alert(
-                    "Error",
-                    "Setup data not found."
+                    text.error,
+                    text.setupNotFound
                 );
 
                 return;
@@ -457,8 +505,8 @@ export default function LoginScreen({
                 setRemainingSeconds(5 * 60);
 
                 Alert.alert(
-                    "App Locked",
-                    "You entered the wrong PIN 5 times.\n\nThe app is locked for 5 minutes."
+                    text.appLocked,
+                    text.lockedFiveMinutes
                 );
 
                 return;
@@ -476,8 +524,8 @@ export default function LoginScreen({
                 MAX_FAILED_ATTEMPTS - failedAttempts;
 
             Alert.alert(
-                "Incorrect PIN",
-                `Please enter the correct PIN.\n\n${attemptsLeft} attempt${
+                text.incorrectPin,
+                `${text.correctPinMessage}\n\n${attemptsLeft} ${
                     attemptsLeft === 1 ? "" : "s"
                 } remaining.`
             );
@@ -488,8 +536,8 @@ export default function LoginScreen({
             );
 
             Alert.alert(
-                "Error",
-                "Something went wrong while checking the PIN."
+                text.error,
+                text.somethingWentWrong
             );
         }
     };
@@ -503,7 +551,7 @@ export default function LoginScreen({
                 />
 
                 <Text style={styles.loadingText}>
-                    Checking unlock options...
+                    {text.checkingUnlock}
                 </Text>
             </View>
         );
@@ -512,17 +560,17 @@ export default function LoginScreen({
     return (
         <View style={styles.container}>
             <Text style={styles.title}>
-                My Mandal
+                {text.title}
             </Text>
 
             {isLocked ? (
                 <>
                     <Text style={styles.lockTitle}>
-                        App Locked
+                        {text.appLocked}
                     </Text>
 
                     <Text style={styles.lockMessage}>
-                        Too many incorrect PIN attempts.
+                        {text.tooManyAttempts}
                     </Text>
 
                     <Text style={styles.timer}>
@@ -530,13 +578,13 @@ export default function LoginScreen({
                     </Text>
 
                     <Text style={styles.lockHint}>
-                        Please wait before trying again.
+                        {text.waitBeforeTrying}
                     </Text>
                 </>
             ) : (
                 <>
                     <Text style={styles.subtitle}>
-                        Enter your 4-digit PIN
+                        {text.enterPin}
                     </Text>
 
                     <TextInput
@@ -561,7 +609,7 @@ export default function LoginScreen({
                         disabled={isLocked}
                     >
                         <Text style={styles.buttonText}>
-                            Unlock
+                            {text.unlock}
                         </Text>
                     </TouchableOpacity>
                 </>

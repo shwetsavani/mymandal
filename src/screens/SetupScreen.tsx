@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
+import { useLanguage } from "../localization/LanguageContext";
 
 type Props = {
     onSetupComplete: () => void;
@@ -22,6 +23,85 @@ const BIOMETRIC_ENABLED_KEY = "mandal_biometric_enabled";
 export default function SetupScreen({
                                         onSetupComplete,
                                     }: Props) {
+    const { language } = useLanguage();
+
+    const text =
+        language === "Gujarati"
+            ? {
+                title: "My Mandal",
+                subtitle: "તમારું મંડળ સેટ કરો",
+                mandalName: "મંડળનું નામ",
+                adminName: "એડમિનનું નામ",
+                mobile: "મોબાઇલ નંબર",
+                recoveryEmail: "રિકવરી ઈમેઇલ",
+                createPin: "4 અંકનો PIN બનાવો",
+                confirmPin: "4 અંકનો PIN ફરી દાખલ કરો",
+                saving: "સાચવી રહ્યા છીએ...",
+                completeSetup: "સેટઅપ પૂર્ણ કરો",
+                missingTitle: "માહિતી અધૂરી છે",
+                missingMessage: "કૃપા કરીને બધી માહિતી ભરો.",
+                invalidPinTitle: "અમાન્ય PIN",
+                invalidPinMessage: "PIN માં ચોક્કસ 4 અંક હોવા જોઈએ.",
+                pinMismatchTitle: "PIN મેળ ખાતો નથી",
+                pinMismatchMessage: "PIN અને Confirm PIN મેળ ખાતા નથી.",
+                invalidEmailTitle: "અમાન્ય ઈમેઇલ",
+                invalidEmailMessage: "કૃપા કરીને માન્ય રિકવરી ઈમેઇલ દાખલ કરો.",
+                invalidMobileTitle: "અમાન્ય મોબાઇલ નંબર",
+                invalidMobileMessage: "કૃપા કરીને માન્ય મોબાઇલ નંબર દાખલ કરો.",
+                setupCompleteTitle: "સેટઅપ પૂર્ણ",
+                setupCompleteMessage: "તમારા મંડળનું સેટઅપ સફળતાપૂર્વક સેવ થયું છે.",
+                continue: "ચાલુ રાખો",
+                enableBiometricTitle: "બાયોમેટ્રિક અનલોક ચાલુ કરવું છે?",
+                enableBiometricMessage:
+                    "My Mandal ઝડપથી અનલોક કરવા માટે તમારા ફિંગરપ્રિન્ટ અથવા ચહેરાનો ઉપયોગ કરો. તમારા 4 અંકના PIN નો બેકઅપ તરીકે ઉપયોગ કરી શકશો.",
+                notNow: "હમણાં નહીં",
+                enable: "ચાલુ કરો",
+                confirmBiometric: "બાયોમેટ્રિક અનલોકની પુષ્ટિ કરો",
+                usePin: "PIN નો ઉપયોગ કરો",
+                biometricNotEnabledTitle: "બાયોમેટ્રિક ચાલુ થયું નથી",
+                biometricNotEnabledMessage:
+                    "બાયોમેટ્રિક ઓથેન્ટિકેશન પૂર્ણ થયું નથી. તમે તમારા 4 અંકના PIN નો ઉપયોગ ચાલુ રાખી શકો છો.",
+                errorTitle: "ભૂલ",
+                saveError: "સેટઅપ માહિતી સેવ કરી શકાઈ નથી.",
+            }
+            : {
+                title: "My Mandal",
+                subtitle: "Set up your Mandal",
+                mandalName: "Mandal Name",
+                adminName: "Admin Name",
+                mobile: "Mobile Number",
+                recoveryEmail: "Recovery Email",
+                createPin: "Create 4 Digit PIN",
+                confirmPin: "Confirm 4 Digit PIN",
+                saving: "Saving...",
+                completeSetup: "Complete Setup",
+                missingTitle: "Missing information",
+                missingMessage: "Please fill in all fields.",
+                invalidPinTitle: "Invalid PIN",
+                invalidPinMessage: "PIN must contain exactly 4 digits.",
+                pinMismatchTitle: "PIN mismatch",
+                pinMismatchMessage: "PIN and Confirm PIN do not match.",
+                invalidEmailTitle: "Invalid email",
+                invalidEmailMessage: "Please enter a valid recovery email.",
+                invalidMobileTitle: "Invalid mobile number",
+                invalidMobileMessage: "Please enter a valid mobile number.",
+                setupCompleteTitle: "Setup Complete",
+                setupCompleteMessage: "Your Mandal setup has been saved successfully.",
+                continue: "Continue",
+                enableBiometricTitle: "Enable Biometric Unlock?",
+                enableBiometricMessage:
+                    "Use your fingerprint or face to unlock My Mandal faster. Your 4-digit PIN will remain available as a backup.",
+                notNow: "Not Now",
+                enable: "Enable",
+                confirmBiometric: "Confirm biometric unlock",
+                usePin: "Use PIN",
+                biometricNotEnabledTitle: "Biometric Not Enabled",
+                biometricNotEnabledMessage:
+                    "Biometric authentication was not completed. You can continue using your 4-digit PIN.",
+                errorTitle: "Error",
+                saveError: "Unable to save setup information.",
+            };
+
     const [mandalName, setMandalName] = useState("");
     const [adminName, setAdminName] = useState("");
     const [mobile, setMobile] = useState("");
@@ -57,27 +137,27 @@ export default function SetupScreen({
             }
 
             Alert.alert(
-                "Enable Biometric Unlock?",
-                "Use your fingerprint or face to unlock My Mandal faster. Your 4-digit PIN will remain available as a backup.",
+                text.enableBiometricTitle,
+                text.enableBiometricMessage,
                 [
                     {
-                        text: "Not Now",
+                        text: text.notNow,
                         style: "cancel",
                         onPress: async () => {
                             await finishSetup();
                         },
                     },
                     {
-                        text: "Enable",
+                        text: text.enable,
                         onPress: async () => {
                             try {
                                 const result =
                                     await LocalAuthentication.authenticateAsync(
                                         {
                                             promptMessage:
-                                                "Confirm biometric unlock",
+                                            text.confirmBiometric,
                                             cancelLabel:
-                                                "Use PIN",
+                                            text.usePin,
                                             disableDeviceFallback:
                                                 true,
                                         }
@@ -97,11 +177,11 @@ export default function SetupScreen({
                                     );
 
                                     Alert.alert(
-                                        "Biometric Not Enabled",
-                                        "Biometric authentication was not completed. You can continue using your 4-digit PIN.",
+                                        text.biometricNotEnabledTitle,
+                                        text.biometricNotEnabledMessage,
                                         [
                                             {
-                                                text: "Continue",
+                                                text: text.continue,
                                                 onPress:
                                                 finishSetup,
                                             },
@@ -145,8 +225,8 @@ export default function SetupScreen({
             !confirmPin
         ) {
             Alert.alert(
-                "Missing information",
-                "Please fill in all fields."
+                text.missingTitle,
+                text.missingMessage
             );
             return;
         }
@@ -156,32 +236,32 @@ export default function SetupScreen({
             !/^\d{4}$/.test(pin)
         ) {
             Alert.alert(
-                "Invalid PIN",
-                "PIN must contain exactly 4 digits."
+                text.invalidPinTitle,
+                text.invalidPinMessage
             );
             return;
         }
 
         if (pin !== confirmPin) {
             Alert.alert(
-                "PIN mismatch",
-                "PIN and Confirm PIN do not match."
+                text.pinMismatchTitle,
+                text.pinMismatchMessage
             );
             return;
         }
 
         if (!validateEmail(email.trim())) {
             Alert.alert(
-                "Invalid email",
-                "Please enter a valid recovery email."
+                text.invalidEmailTitle,
+                text.invalidEmailMessage
             );
             return;
         }
 
         if (!/^\d+$/.test(mobile.trim())) {
             Alert.alert(
-                "Invalid mobile number",
-                "Please enter a valid mobile number."
+                text.invalidMobileTitle,
+                text.invalidMobileMessage
             );
             return;
         }
@@ -209,11 +289,11 @@ export default function SetupScreen({
             );
 
             Alert.alert(
-                "Setup Complete",
-                "Your Mandal setup has been saved successfully.",
+                text.setupCompleteTitle,
+                text.setupCompleteMessage,
                 [
                     {
-                        text: "Continue",
+                        text: text.continue,
                         onPress: async () => {
                             await askToEnableBiometric();
                         },
@@ -227,8 +307,8 @@ export default function SetupScreen({
             );
 
             Alert.alert(
-                "Error",
-                "Unable to save setup information."
+                text.errorTitle,
+                text.saveError
             );
         } finally {
             setSaving(false);
@@ -258,7 +338,7 @@ export default function SetupScreen({
 
                 <TextInput
                     style={styles.input}
-                    placeholder="Mandal Name"
+                    placeholder={text.mandalName}
                     value={mandalName}
                     onChangeText={setMandalName}
                     autoCapitalize="words"
@@ -266,7 +346,7 @@ export default function SetupScreen({
 
                 <TextInput
                     style={styles.input}
-                    placeholder="Admin Name"
+                    placeholder={text.adminName}
                     value={adminName}
                     onChangeText={setAdminName}
                     autoCapitalize="words"
@@ -274,7 +354,7 @@ export default function SetupScreen({
 
                 <TextInput
                     style={styles.input}
-                    placeholder="Mobile Number"
+                    placeholder={text.mobile}
                     value={mobile}
                     onChangeText={setMobile}
                     keyboardType="phone-pad"
@@ -282,7 +362,7 @@ export default function SetupScreen({
 
                 <TextInput
                     style={styles.input}
-                    placeholder="Recovery Email"
+                    placeholder={text.recoveryEmail}
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
@@ -292,7 +372,7 @@ export default function SetupScreen({
 
                 <TextInput
                     style={styles.input}
-                    placeholder="Create 4 Digit PIN"
+                    placeholder={text.createPin}
                     value={pin}
                     onChangeText={setPin}
                     keyboardType="number-pad"
@@ -302,7 +382,7 @@ export default function SetupScreen({
 
                 <TextInput
                     style={styles.input}
-                    placeholder="Confirm 4 Digit PIN"
+                    placeholder={text.confirmPin}
                     value={confirmPin}
                     onChangeText={setConfirmPin}
                     keyboardType="number-pad"
@@ -321,8 +401,8 @@ export default function SetupScreen({
                 >
                     <Text style={styles.buttonText}>
                         {saving
-                            ? "Saving..."
-                            : "Complete Setup"}
+                            ? text.saving
+                            : text.completeSetup}
                     </Text>
                 </TouchableOpacity>
             </ScrollView>

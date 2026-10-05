@@ -32,6 +32,8 @@ import {
     type Payment,
 } from "../database/paymentStorage";
 
+import { useLanguage } from "../localization/LanguageContext";
+
 type RootStackParamList = {
     Home: undefined;
     Members: undefined;
@@ -63,6 +65,8 @@ type DashboardData = {
 export default function HomeScreen() {
     const navigation =
         useNavigation<HomeScreenNavigationProp>();
+
+    const { language, t } = useLanguage();
 
     const [dashboard, setDashboard] =
         useState<DashboardData>({
@@ -311,10 +315,15 @@ export default function HomeScreen() {
             currentYear,
             currentMonth - 1,
             1
-        ).toLocaleString("en-IN", {
-            month: "long",
-            year: "numeric",
-        });
+        ).toLocaleString(
+            language === "Gujarati"
+                ? "gu-IN"
+                : "en-IN",
+            {
+                month: "long",
+                year: "numeric",
+            }
+        );
 
     return (
         <ScrollView
@@ -359,7 +368,7 @@ export default function HomeScreen() {
                     <Text
                         style={styles.cardLabel}
                     >
-                        Members
+                        {t.home.members}
                     </Text>
 
                     <Text
@@ -375,7 +384,7 @@ export default function HomeScreen() {
                     <Text
                         style={styles.cardLabel}
                     >
-                        Paid
+                        {t.common?.done ?? "Paid"}
                     </Text>
 
                     <Text
@@ -391,7 +400,7 @@ export default function HomeScreen() {
                     <Text
                         style={styles.cardLabel}
                     >
-                        Pending
+                        {t.home.pending}
                     </Text>
 
                     <Text
@@ -406,14 +415,14 @@ export default function HomeScreen() {
 
             {/* Financial Summary */}
             <Text style={styles.sectionTitle}>
-                This Month
+                {t.home.thisMonth}
             </Text>
 
             <View style={styles.financeCard}>
                 <Text
                     style={styles.financeLabel}
                 >
-                    Original Installments
+                    {t.home.originalInstallments}
                 </Text>
 
                 <Text
@@ -431,7 +440,7 @@ export default function HomeScreen() {
                 <Text
                     style={styles.financeLabel}
                 >
-                    Penalty
+                    {t.home.penalty}
                 </Text>
 
                 <Text
@@ -449,7 +458,7 @@ export default function HomeScreen() {
                 <Text
                     style={styles.financeLabel}
                 >
-                    Collected
+                    {t.home.collected}
                 </Text>
 
                 <Text
@@ -467,7 +476,7 @@ export default function HomeScreen() {
                 <Text
                     style={styles.financeLabel}
                 >
-                    Pending
+                    {t.home.pending}
                 </Text>
 
                 <Text
@@ -488,7 +497,7 @@ export default function HomeScreen() {
                 <Text
                     style={styles.overdueTitle}
                 >
-                    Old Overdue
+                    {t.home.oldOverdue}
                 </Text>
 
                 <Text
@@ -506,14 +515,14 @@ export default function HomeScreen() {
                         styles.overdueDescription
                     }
                 >
-                    Outstanding from previous
-                    months
+                    {t.home.outstandingFromPrevious}{" "}
+                    {t.home.months}
                 </Text>
             </View>
 
             {/* Quick Actions */}
             <Text style={styles.sectionTitle}>
-                Quick Actions
+                {t.home.quickActions}
             </Text>
 
             <View style={styles.actionRow}>
@@ -528,7 +537,7 @@ export default function HomeScreen() {
                     <Text
                         style={styles.actionText}
                     >
-                        Record Payment
+                        {t.home.recordPayment}
                     </Text>
                 </TouchableOpacity>
 
@@ -543,14 +552,14 @@ export default function HomeScreen() {
                     <Text
                         style={styles.actionText}
                     >
-                        Add Member
+                        {t.home.addMember}
                     </Text>
                 </TouchableOpacity>
             </View>
 
             {/* Main Navigation */}
             <Text style={styles.sectionTitle}>
-                Manage
+                {t.home.manage}
             </Text>
 
             <TouchableOpacity
@@ -566,7 +575,7 @@ export default function HomeScreen() {
                         styles.navigationText
                     }
                 >
-                    Monthly Payments
+                    {t.payments.monthlyPayments}
                 </Text>
             </TouchableOpacity>
 
@@ -583,7 +592,7 @@ export default function HomeScreen() {
                         styles.navigationText
                     }
                 >
-                    Members
+                    {t.navigation.members}
                 </Text>
             </TouchableOpacity>
 
@@ -600,7 +609,7 @@ export default function HomeScreen() {
                         styles.navigationText
                     }
                 >
-                    History
+                    {t.navigation.history}
                 </Text>
             </TouchableOpacity>
 
@@ -617,7 +626,7 @@ export default function HomeScreen() {
                         styles.navigationText
                     }
                 >
-                    Reports
+                    {t.navigation.reports}
                 </Text>
             </TouchableOpacity>
 
@@ -634,7 +643,7 @@ export default function HomeScreen() {
                         styles.navigationText
                     }
                 >
-                    Export
+                    {t.navigation.export}
                 </Text>
             </TouchableOpacity>
         </ScrollView>

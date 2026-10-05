@@ -13,6 +13,7 @@ import {
 } from "@react-navigation/native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useLanguage } from "../localization/LanguageContext";
 
 type MonthlyObligation = {
     id: string;
@@ -47,20 +48,36 @@ const OBLIGATIONS_KEY =
 const PAYMENTS_KEY =
     "mandal_payments";
 
-const monthNames = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-];
+const monthNames = {
+    English: [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ],
+    Gujarati: [
+        "જાન્યુઆરી",
+        "ફેબ્રુઆરી",
+        "માર્ચ",
+        "એપ્રિલ",
+        "મે",
+        "જૂન",
+        "જુલાઈ",
+        "ઑગસ્ટ",
+        "સપ્ટેમ્બર",
+        "ઑક્ટોબર",
+        "નવેમ્બર",
+        "ડિસેમ્બર",
+    ],
+};
 
 type ReportTotals = {
     originalInstallments: number;
@@ -138,6 +155,38 @@ const getTotalsForObligations = (
 
 export default function ReportsScreen() {
     const navigation = useNavigation();
+    const { language } = useLanguage();
+
+    const text =
+        language === "Gujarati"
+            ? {
+                loading: "રિપોર્ટ લોડ થઈ રહ્યો છે...",
+                back: "← પાછા",
+                reports: "રિપોર્ટ્સ",
+                subtitle: "માસિક અને વાર્ષિક નાણાકીય સારાંશ",
+                yearlySummary: "વાર્ષિક સારાંશ",
+                originalInstallments: "મૂળ હપ્તા",
+                penalty: "દંડ",
+                collected: "વસૂલ થયેલ",
+                pending: "બાકી",
+                monthlyBreakdown: "માસિક વિગત",
+                twelveMonthOverview: "12 મહિનાનો ઓવરવ્યૂ",
+                original: "મૂળ",
+            }
+            : {
+                loading: "Loading reports...",
+                back: "← Back",
+                reports: "Reports",
+                subtitle: "Monthly and yearly financial summary",
+                yearlySummary: "Yearly Summary",
+                originalInstallments: "Original Installments",
+                penalty: "Penalty",
+                collected: "Collected",
+                pending: "Pending",
+                monthlyBreakdown: "Monthly Breakdown",
+                twelveMonthOverview: "12-Month Overview",
+                original: "Original",
+            };
 
     const [loading, setLoading] =
         useState(true);
@@ -282,7 +331,7 @@ export default function ReportsScreen() {
                         styles.loadingText
                     }
                 >
-                    Loading reports...
+                    {text.loading}
                 </Text>
             </View>
         );
@@ -305,12 +354,12 @@ export default function ReportsScreen() {
                             styles.backText
                         }
                     >
-                        ← Back
+                        {text.back}
                     </Text>
                 </TouchableOpacity>
 
                 <Text style={styles.title}>
-                    Reports
+                    {text.reports}
                 </Text>
 
                 <Text
@@ -318,8 +367,7 @@ export default function ReportsScreen() {
                         styles.subtitle
                     }
                 >
-                    Monthly and yearly financial
-                    summary
+                    {text.subtitle}
                 </Text>
 
                 <View
@@ -381,7 +429,7 @@ export default function ReportsScreen() {
                         styles.sectionTitle
                     }
                 >
-                    Yearly Summary
+                    {text.yearlySummary}
                 </Text>
 
                 <View
@@ -390,25 +438,25 @@ export default function ReportsScreen() {
                     }
                 >
                     <SummaryCard
-                        label="Original Installments"
+                        label={text.originalInstallments}
                         value={
                             yearTotals.originalInstallments
                         }
                     />
                     <SummaryCard
-                        label="Penalty"
+                        label={text.penalty}
                         value={
                             yearTotals.penalty
                         }
                     />
                     <SummaryCard
-                        label="Collected"
+                        label={text.collected}
                         value={
                             yearTotals.collected
                         }
                     />
                     <SummaryCard
-                        label="Pending"
+                        label={text.pending}
                         value={
                             yearTotals.pending
                         }
@@ -420,7 +468,7 @@ export default function ReportsScreen() {
                         styles.sectionTitle
                     }
                 >
-                    Monthly Breakdown
+                    {text.monthlyBreakdown}
                 </Text>
 
                 <ScrollView
@@ -432,7 +480,7 @@ export default function ReportsScreen() {
                         styles.monthSelector
                     }
                 >
-                    {monthNames.map(
+                    {monthNames[language].map(
                         (name, index) => {
                             const month =
                                 index + 1;
@@ -486,34 +534,31 @@ export default function ReportsScreen() {
                         }
                     >
                         {
-                            monthNames[
-                            selectedMonth -
-                            1
-                                ]
+                            monthNames[language][selectedMonth - 1]
                         }{" "}
                         {year}
                     </Text>
 
                     <SummaryRow
-                        label="Original Installments"
+                        label={text.originalInstallments}
                         value={
                             selectedTotals.originalInstallments
                         }
                     />
                     <SummaryRow
-                        label="Penalty"
+                        label={text.penalty}
                         value={
                             selectedTotals.penalty
                         }
                     />
                     <SummaryRow
-                        label="Collected"
+                        label={text.collected}
                         value={
                             selectedTotals.collected
                         }
                     />
                     <SummaryRow
-                        label="Pending"
+                        label={text.pending}
                         value={
                             selectedTotals.pending
                         }
@@ -525,10 +570,10 @@ export default function ReportsScreen() {
                         styles.sectionTitle
                     }
                 >
-                    12-Month Overview
+                    {text.twelveMonthOverview}
                 </Text>
 
-                {monthNames.map(
+                {monthNames[language].map(
                     (name, index) => {
                         const month =
                             index + 1;
@@ -587,7 +632,7 @@ export default function ReportsScreen() {
                                             styles.monthRowDetailText
                                         }
                                     >
-                                        Original:{" "}
+                                        {text.original}:{" "}
                                         {formatCurrency(
                                             totals.originalInstallments
                                         )}
@@ -598,7 +643,7 @@ export default function ReportsScreen() {
                                             styles.monthRowDetailText
                                         }
                                     >
-                                        Penalty:{" "}
+                                        {text.penalty}:{" "}
                                         {formatCurrency(
                                             totals.penalty
                                         )}
@@ -609,7 +654,7 @@ export default function ReportsScreen() {
                                             styles.monthRowDetailText
                                         }
                                     >
-                                        Pending:{" "}
+                                        {text.pending}:{" "}
                                         {formatCurrency(
                                             totals.pending
                                         )}

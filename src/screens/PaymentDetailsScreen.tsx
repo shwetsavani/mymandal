@@ -39,6 +39,8 @@ import {
     calculatePaymentAmount,
 } from "../utils/paymentCalculator";
 
+import { useLanguage } from "../localization/LanguageContext";
+
 type RootStackParamList = {
     Home: undefined;
     Members: undefined;
@@ -67,6 +69,34 @@ type NavigationProp =
     >;
 
 export default function PaymentDetailsScreen() {
+    const { language } = useLanguage();
+
+    const text = language === "Gujarati" ? {
+        error: "ભૂલ", unableLoad: "ચુકવણી રેકોર્ડ લોડ કરી શકાયા નથી.", invalidDate: "અમાન્ય તારીખ",
+        invalidDateMessage: "કૃપા કરીને માન્ય તારીખ અને સમય દાખલ કરો.\\n\\nતારીખ: DD/MM/YYYY\\nસમય: HH:MM",
+        confirmDateChange: "તારીખ બદલવાની પુષ્ટિ કરો", member: "સભ્ય", oldDateTime: "જૂની તારીખ/સમય:",
+        newDateTime: "નવી તારીખ/સમય:", originalInstallment: "મૂળ હપ્તો", newPenalty: "નવી પેનલ્ટી",
+        newTotalDue: "નવી કુલ બાકી રકમ", totalCollected: "કુલ વસૂલાત", remaining: "બાકી", newStatus: "નવી સ્થિતિ",
+        paid: "ચૂકવેલ", partiallyPaid: "આંશિક ચૂકવેલ", pending: "બાકી", cancel: "રદ કરો", confirm: "પુષ્ટિ કરો",
+        paymentUpdated: "ચુકવણી અપડેટ થઈ", paymentUpdatedMessage: "ચુકવણીની તારીખ/સમય સફળતાપૂર્વક અપડેટ થયો.",
+        unableUpdate: "ચુકવણીની તારીખ અપડેટ કરી શકાયી નથી.", ok: "બરાબર", loading: "ચુકવણીઓ લોડ થઈ રહી છે...",
+        back: "← પાછા", paymentDetails: "ચુકવણી વિગતો", installment: "હપ્તો", noPayments: "કોઈ ચુકવણી નોંધાઈ નથી.",
+        payment: "ચુકવણી", collected: "વસૂલ કરેલ", date: "તારીખ", time: "સમય", calculatedAmount: "ગણતરી કરેલ રકમ",
+        calculatedPenalty: "ગણતરી કરેલ પેનલ્ટી", manualOverride: "મેન્યુઅલ ફેરફાર", editDate: "તારીખ અને સમય સંપાદિત કરો", save: "સાચવો"
+    } : {
+        error: "Error", unableLoad: "Unable to load payment records.", invalidDate: "Invalid Date",
+        invalidDateMessage: "Please enter a valid date and time.\\n\\nDate: DD/MM/YYYY\\nTime: HH:MM",
+        confirmDateChange: "Confirm Date Change", member: "Member", oldDateTime: "Old date/time:",
+        newDateTime: "New date/time:", originalInstallment: "Original installment", newPenalty: "New penalty",
+        newTotalDue: "New total due", totalCollected: "Total collected", remaining: "Remaining", newStatus: "New status",
+        paid: "Paid", partiallyPaid: "Partially Paid", pending: "Pending", cancel: "Cancel", confirm: "Confirm",
+        paymentUpdated: "Payment Updated", paymentUpdatedMessage: "Payment date/time updated successfully.",
+        unableUpdate: "Unable to update the payment date.", ok: "OK", loading: "Loading payments...", back: "← Back",
+        paymentDetails: "Payment Details", installment: "Installment", noPayments: "No payments recorded.",
+        payment: "Payment", collected: "Collected", date: "Date", time: "Time", calculatedAmount: "Calculated amount",
+        calculatedPenalty: "Calculated penalty", manualOverride: "Manual override", editDate: "Edit Date & Time", save: "Save"
+    };
+
     const navigation =
         useNavigation<NavigationProp>();
 
@@ -112,8 +142,8 @@ export default function PaymentDetailsScreen() {
                 );
 
                 Alert.alert(
-                    "Error",
-                    "Unable to load payment records."
+                    text.error,
+                    text.unableLoad
                 );
             } finally {
                 setLoading(false);
@@ -279,6 +309,15 @@ export default function PaymentDetailsScreen() {
             return;
         }
 
+        /*
+         * The monthly obligation has ONE total due.
+         *
+         * Penalty is calculated on the FULL original
+         * installment, not separately for each payment.
+         *
+         * The latest actual payment date determines
+         * the current applicable penalty for the month.
+         */
         const sortedPayments =
             [...updatedPayments].sort(
                 (a, b) =>
@@ -289,15 +328,28 @@ export default function PaymentDetailsScreen() {
         const latestPayment =
             sortedPayments[0];
 
-        const latestPaymentDate =
-            new Date(latestPayment.paidAt);
-
-        const calculation =
+        /*
+         * IMPORTANT:
+         * Recalculate from the actual payment date.
+         * Do not use the old stored calculatedAmount,
+         * because the payment date may have been edited.
+         */
+        const latestCalculation =
             calculatePaymentAmount(
                 obligation.originalInstallment,
-                latestPaymentDate
+                new Date(latestPayment.paidAt)
             );
 
+        const totalDue =
+            latestCalculation.totalDue;
+
+        const penalty =
+            latestCalculation.penalty;
+
+        /*
+         * Actual money collected must NEVER be changed
+         * just because the payment date changed.
+         */
         const totalPaid =
             updatedPayments.reduce(
                 (total, payment) =>
@@ -308,8 +360,7 @@ export default function PaymentDetailsScreen() {
 
         const remainingAmount =
             Math.max(
-                calculation.totalDue -
-                totalPaid,
+                totalDue - totalPaid,
                 0
             );
 
@@ -320,14 +371,18 @@ export default function PaymentDetailsScreen() {
                     ? "partially_paid"
                     : "pending";
 
+        /*
+         * Rebuild the complete monthly obligation
+         * from ALL payment records.
+         */
         await updateMonthlyObligation(
             obligation.id,
             {
                 currentAmountDue:
-                calculation.totalDue,
+                totalDue,
 
                 penalty:
-                calculation.penalty,
+                penalty,
 
                 paidAmount:
                 totalPaid,
@@ -349,21 +404,16 @@ export default function PaymentDetailsScreen() {
 
         if (!newDate) {
             Alert.alert(
-                "Invalid Date",
-                "Please enter a valid date and time.\n\nDate: DD/MM/YYYY\nTime: HH:MM"
+                text.invalidDate,
+                text.invalidDateMessage
             );
 
             return;
         }
 
         /*
-         * IMPORTANT:
-         *
          * The obligation month NEVER changes.
-         * We only change the actual payment date/time.
-         *
-         * The penalty is calculated using the date selected
-         * by the admin, NOT today's date.
+         * Only the actual payment date/time changes.
          */
         const calculation =
             calculatePaymentAmount(
@@ -372,75 +422,149 @@ export default function PaymentDetailsScreen() {
             );
 
         /*
-         * This handles the exact situation where the payment
-         * was previously entered incorrectly using today's date.
-         *
-         * Example:
-         * Old calculated amount = ₹1,200
-         * Old actual collected = ₹1,200
-         * Correct date = 14th
-         * Correct calculated amount = ₹1,000
-         *
-         * In that case the app automatically corrects the
-         * actual collected amount to ₹1,000 too.
-         *
-         * If actualCollectedAmount is different from the old
-         * calculated amount, we preserve it because that may
-         * represent a genuine manual/partial collection.
+         * Get all existing payments first so we can
+         * show the correct result before confirmation.
          */
-        const wasPreviouslyAutoCalculated =
-            Math.abs(
-                payment.actualCollectedAmount -
-                payment.calculatedAmount
-            ) < 0.01;
+        const existingPayments =
+            await getPaymentsForObligation(
+                obligationId
+            );
 
-        const correctedCollectedAmount =
-            wasPreviouslyAutoCalculated
-                ? calculation.totalDue
-                : payment.actualCollectedAmount;
+        /*
+         * Simulate this payment's new date without
+         * changing the stored payment yet.
+         */
+        const simulatedPayments =
+            existingPayments.map(
+                (existingPayment) =>
+                    existingPayment.id === payment.id
+                        ? {
+                            ...existingPayment,
+                            paidAt:
+                                newDate.toISOString(),
+                            calculatedAmount:
+                            calculation.totalDue,
+                            calculatedPenalty:
+                            calculation.penalty,
+                        }
+                        : existingPayment
+            );
+
+        /*
+         * The latest payment date determines the
+         * month's applicable penalty.
+         */
+        const sortedSimulatedPayments =
+            [...simulatedPayments].sort(
+                (a, b) =>
+                    new Date(b.paidAt).getTime() -
+                    new Date(a.paidAt).getTime()
+            );
+
+        const latestPayment =
+            sortedSimulatedPayments[0];
+
+        const newMonthlyCalculation =
+            calculatePaymentAmount(
+                originalInstallment,
+                new Date(latestPayment.paidAt)
+            );
+
+        /*
+         * IMPORTANT:
+         * Actual collected amounts are historical money.
+         * Never automatically change them because the
+         * payment date was edited.
+         */
+        const totalPaid =
+            simulatedPayments.reduce(
+                (total, item) =>
+                    total +
+                    item.actualCollectedAmount,
+                0
+            );
+
+        const totalDue =
+            newMonthlyCalculation.totalDue;
+
+        const penalty =
+            newMonthlyCalculation.penalty;
+
+        const remainingAmount =
+            Math.max(
+                totalDue - totalPaid,
+                0
+            );
+
+        const newStatus =
+            remainingAmount === 0
+                ? "paid"
+                : totalPaid > 0
+                    ? "partially_paid"
+                    : "pending";
 
         const oldDate =
             new Date(payment.paidAt);
 
         const oldDateText =
-            oldDate.toLocaleDateString();
+            `${String(oldDate.getDate()).padStart(2, "0")}/` +
+            `${String(oldDate.getMonth() + 1).padStart(2, "0")}/` +
+            `${oldDate.getFullYear()} ` +
+            `${String(oldDate.getHours()).padStart(2, "0")}:` +
+            `${String(oldDate.getMinutes()).padStart(2, "0")}`;
 
         const newDateText =
-            newDate.toLocaleDateString();
-
-        const collectedChangeText =
-            wasPreviouslyAutoCalculated
-                ? `\nCorrected collected amount: ₹${correctedCollectedAmount.toFixed(
-                    2
-                )}`
-                : `\nActual collected amount remains: ₹${correctedCollectedAmount.toFixed(
-                    2
-                )}`;
+            `${String(newDate.getDate()).padStart(2, "0")}/` +
+            `${String(newDate.getMonth() + 1).padStart(2, "0")}/` +
+            `${newDate.getFullYear()} ` +
+            `${String(newDate.getHours()).padStart(2, "0")}:` +
+            `${String(newDate.getMinutes()).padStart(2, "0")}`;
 
         Alert.alert(
-            "Confirm Date Change",
-            `Member: ${memberName}\n\n` +
-            `Old date: ${oldDateText}\n` +
-            `New date: ${newDateText}\n\n` +
-            `Original installment: ₹${originalInstallment.toFixed(
-                2
-            )}\n` +
-            `New penalty: ₹${calculation.penalty.toFixed(
-                2
-            )}\n` +
-            `New calculated amount: ₹${calculation.totalDue.toFixed(
-                2
-            )}` +
-            collectedChangeText,
+            text.confirmDateChange,
+
+            `${text.member}: ${memberName}\n\n` +
+
+            `${text.oldDateTime}\n${oldDateText}\n\n` +
+
+            `${text.newDateTime}\n${newDateText}\n\n` +
+
+            `${text.originalInstallment}: ₹${originalInstallment.toFixed(2)}\n` +
+
+            `${text.newPenalty}: ₹${penalty.toFixed(2)}\n` +
+
+            `${text.newTotalDue}: ₹${totalDue.toFixed(2)}\n` +
+
+            `${text.totalCollected}: ₹${totalPaid.toFixed(2)}\n` +
+
+            `${text.remaining}: ₹${remainingAmount.toFixed(2)}\n\n` +
+
+            `${text.newStatus}: ${
+                newStatus === "paid"
+                    ? "Paid"
+                    : newStatus === "partially_paid"
+                        ? "Partially Paid"
+                        : "Pending"
+            }`,
+
             [
                 {
-                    text: "Cancel",
+                    text: text.cancel,
                     style: "cancel",
                 },
                 {
-                    text: "Confirm",
+                    text: text.confirm,
+
                     onPress: async () => {
                         try {
+                            /*
+                             * Update ONLY the selected payment.
+                             *
+                             * Actual collected amount stays exactly
+                             * as it was.
+                             *
+                             * {text.manualOverride} also stays preserved.
+                             */
                             await updatePayment(
                                 payment.id,
                                 {
@@ -452,32 +576,28 @@ export default function PaymentDetailsScreen() {
 
                                     calculatedPenalty:
                                     calculation.penalty,
-
-                                    actualCollectedAmount:
-                                    correctedCollectedAmount,
-
-                                    /*
-                                     * If the amount was automatically
-                                     * corrected from the old calculated
-                                     * amount, it is no longer a manual
-                                     * override.
-                                     */
-                                    isManualOverride:
-                                        wasPreviouslyAutoCalculated
-                                            ? false
-                                            : payment.isManualOverride,
                                 }
                             );
 
+                            /*
+                             * Reload ALL payments after the update.
+                             */
                             const refreshedPayments =
                                 await getPaymentsForObligation(
                                     obligationId
                                 );
 
+                            /*
+                             * Update the screen.
+                             */
                             setPayments(
                                 refreshedPayments
                             );
 
+                            /*
+                             * Completely rebuild this month's
+                             * obligation from ALL payments.
+                             */
                             await recalculateObligation(
                                 refreshedPayments
                             );
@@ -485,20 +605,27 @@ export default function PaymentDetailsScreen() {
                             cancelEditing();
 
                             Alert.alert(
-                                "Payment Updated",
-                                `Payment date changed to ${newDateText}.\n\n` +
-                                `Calculated amount: ₹${calculation.totalDue.toFixed(
-                                    2
-                                )}\n` +
-                                `Penalty: ₹${calculation.penalty.toFixed(
-                                    2
-                                )}\n` +
-                                `Collected: ₹${correctedCollectedAmount.toFixed(
-                                    2
-                                )}`,
+                                text.paymentUpdated,
+
+                                `${text.paymentUpdatedMessage}\n\n` +
+
+                                `Total due: ₹${totalDue.toFixed(2)}\n` +
+
+                                `${text.totalCollected}: ₹${totalPaid.toFixed(2)}\n` +
+
+                                `${text.remaining}: ₹${remainingAmount.toFixed(2)}\n\n` +
+
+                                `${text.newStatus}: ${
+                                    newStatus === "paid"
+                                        ? "Paid"
+                                        : newStatus === "partially_paid"
+                                            ? "Partially Paid"
+                                            : "Pending"
+                                }`,
+
                                 [
                                     {
-                                        text: "OK",
+                                        text: text.ok,
                                         onPress:
                                         loadPayments,
                                     },
@@ -512,7 +639,7 @@ export default function PaymentDetailsScreen() {
 
                             Alert.alert(
                                 "Error",
-                                "Unable to update the payment date."
+                                text.unableUpdate
                             );
                         }
                     },
@@ -525,7 +652,7 @@ export default function PaymentDetailsScreen() {
         return (
             <View style={styles.center}>
                 <Text>
-                    Loading payments...
+                    {text.loading}
                 </Text>
             </View>
         );
@@ -544,12 +671,12 @@ export default function PaymentDetailsScreen() {
                     }
                 >
                     <Text style={styles.back}>
-                        ← Back
+                        {text.back}
                     </Text>
                 </TouchableOpacity>
 
                 <Text style={styles.title}>
-                    Payment Details
+                    {text.paymentDetails}
                 </Text>
 
                 <Text
@@ -561,7 +688,7 @@ export default function PaymentDetailsScreen() {
                 <Text
                     style={styles.subtitle}
                 >
-                    Installment: ₹
+                    {text.installment}: ₹
                     {originalInstallment.toFixed(
                         2
                     )}
@@ -574,7 +701,7 @@ export default function PaymentDetailsScreen() {
                         }
                     >
                         <Text>
-                            No payments recorded.
+                            {text.noPayments}
                         </Text>
                     </View>
                 ) : (
@@ -606,7 +733,7 @@ export default function PaymentDetailsScreen() {
                                             styles.paymentNumber
                                         }
                                     >
-                                        Payment #
+                                        {text.payment} #
                                         {index + 1}
                                     </Text>
 
@@ -615,7 +742,7 @@ export default function PaymentDetailsScreen() {
                                             styles.amount
                                         }
                                     >
-                                        Collected: ₹
+                                        {text.collected}: ₹
                                         {payment.actualCollectedAmount.toFixed(
                                             2
                                         )}
@@ -644,8 +771,7 @@ export default function PaymentDetailsScreen() {
                                             styles.info
                                         }
                                     >
-                                        Calculated
-                                        amount: ₹
+                                        {text.calculatedAmount}: ₹
                                         {payment.calculatedAmount.toFixed(
                                             2
                                         )}
@@ -656,8 +782,7 @@ export default function PaymentDetailsScreen() {
                                             styles.info
                                         }
                                     >
-                                        Calculated
-                                        penalty: ₹
+                                        {text.calculatedPenalty}: ₹
                                         {payment.calculatedPenalty.toFixed(
                                             2
                                         )}
@@ -669,7 +794,7 @@ export default function PaymentDetailsScreen() {
                                                 styles.overrideInfo
                                             }
                                         >
-                                            Manual override
+                                            {text.manualOverride}
                                             {payment.overrideReason
                                                 ? `: ${payment.overrideReason}`
                                                 : ""}
@@ -794,8 +919,7 @@ export default function PaymentDetailsScreen() {
                                                     styles.editButtonText
                                                 }
                                             >
-                                                Edit Date &
-                                                Time
+                                                {text.editDate}
                                             </Text>
                                         </TouchableOpacity>
                                     )}

@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { triggerCloudSync } from "../services/cloudSync";
+import { recordDeletedRecord } from "../services/syncDeletionStorage";
 
 export type Payment = {
     id: string;
@@ -51,7 +52,6 @@ export const savePayments = async (
         );
 
         // Automatically sync to Firebase.
-        // Local save is not blocked by cloud sync.
         void triggerCloudSync();
     } catch (error) {
         console.error(
@@ -75,13 +75,10 @@ export const addPayment = async (
 
     const newPayment: Payment = {
         ...payment,
-
         id: `${Date.now()}-${Math.random()
             .toString(36)
             .substring(2, 9)}`,
-
         createdAt: now,
-
         updatedAt: now,
     };
 
@@ -184,6 +181,13 @@ export const deletePayment = async (
         );
     }
 
+    // Record the deletion before removing
+    // the payment from local storage.
+    await recordDeletedRecord(
+        "payments",
+        paymentId
+    );
+
     const updatedPayments =
         payments.filter(
             (payment) =>
@@ -201,6 +205,22 @@ export const deletePaymentsForMember =
     ): Promise<void> => {
         const payments =
             await getPayments();
+
+        const paymentsToDelete =
+            payments.filter(
+                (payment) =>
+                    payment.memberId ===
+                    memberId
+            );
+
+        // Record every payment deletion so
+        // Firebase can remove the same documents.
+        for (const payment of paymentsToDelete) {
+            await recordDeletedRecord(
+                "payments",
+                payment.id
+            );
+        }
 
         const updatedPayments =
             payments.filter(

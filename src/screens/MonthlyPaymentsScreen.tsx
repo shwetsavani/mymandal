@@ -51,6 +51,8 @@ import {
     calculatePaymentAmount,
 } from "../utils/paymentCalculator";
 
+import { useLanguage } from "../localization/LanguageContext";
+
 type RootStackParamList = {
     Home: undefined;
 
@@ -83,6 +85,40 @@ type MemberPaymentRow = {
 };
 
 export default function MonthlyPaymentsScreen() {
+    const { language } = useLanguage();
+    const text = language === "Gujarati" ? {
+        back: "પાછળ", monthlyPayments: "માસિક ચુકવણી", members: "સભ્યો", paid: "ચૂકવેલ", pending: "બાકી",
+        noActiveMembers: "કોઈ સક્રિય સભ્યો નથી", addActiveMember: "માસિક ચુકવણી શરૂ કરવા માટે સક્રિય સભ્ય ઉમેરો.",
+        installment: "હપ્તો", due: "બાકી રકમ", collected: "ચૂકવેલ", remaining: "બાકી", penalty: "દંડ", statusPaid: "ચૂકવેલ",
+        statusPartial: "આંશિક ચૂકવેલ", statusPending: "બાકી", paymentDetails: "ચુકવણી વિગતો", recordPayment: "ચુકવણી નોંધો",
+        originalInstallment: "મૂળ હપ્તો", paymentDate: "ચુકવણી તારીખ", paymentTime: "ચુકવણી સમય", calculation: "ગણતરી", totalDue: "કુલ બાકી",
+        validDate: "ગણતરી જોવા માટે માન્ય ચુકવણી તારીખ અને સમય દાખલ કરો.", amountToCollect: "વસૂલવાની રકમ", enterAmount: "રકમ દાખલ કરો",
+        manualOverride: "મેન્યુઅલ રકમ ફેરફાર", overrideDescription: "વાસ્તવિક વસૂલેલી રકમ ગણતરી કરેલી રકમથી અલગ હોય ત્યારે જ આ ચાલુ કરો.",
+        overrideReason: "ફેરફારનું કારણ *", enterReason: "રકમ બદલવાનું કારણ દાખલ કરો", cancel: "રદ કરો", confirm: "પુષ્ટિ કરો",
+        done: "DONE", paidButton: "PAID", loading: "માસિક ચુકવણીઓ લોડ થઈ રહી છે...", error: "ભૂલ", alreadyPaid: "પહેલેથી ચૂકવેલ",
+        alreadyPaidMessage: "આ મહિનાની ચુકવણી પહેલેથી જ સંપૂર્ણ ચૂકવાઈ ગઈ છે.", preparePayment: "ચુકવણી તૈયાર કરી શકાઈ નથી.",
+        reverseTitle: "ચુકવણીને ફરી બાકી કરવી છે?", reverseButton: "ચુકવણી રિવર્સ કરો", reversed: "ચુકવણી રિવર્સ થઈ ગઈ", invalidAmount: "અમાન્ય રકમ",
+        validAmount: "કૃપા કરીને માન્ય ચુકવણી રકમ દાખલ કરો.", invalidDate: "અમાન્ય ચુકવણી તારીખ", validDateTime: "કૃપા કરીને માન્ય તારીખ અને સમય દાખલ કરો.\n\nતારીખ: DD/MM/YYYY\nસમય: HH:MM",
+        reasonRequired: "કારણ જરૂરી છે", reasonRequiredMessage: "મેન્યુઅલ રકમ ફેરફાર માટે કારણ દાખલ કરો.", amountTooHigh: "રકમ વધારે છે",
+        confirmPayment: "ચુકવણીની પુષ્ટિ કરો", manualYes: "મેન્યુઅલ ફેરફાર: હા", manualNo: "મેન્યુઅલ ફેરફાર: ના", paymentRecorded: "ચુકવણી નોંધાઈ ગઈ", ok: "બરાબર",
+        savePaymentError: "ચુકવણી સાચવી શકાઈ નથી."
+    } : {
+        back: "Back", monthlyPayments: "Monthly Payments", members: "Members", paid: "Paid", pending: "Pending",
+        noActiveMembers: "No active members", addActiveMember: "Add an active member to start monthly payments.", installment: "Installment", due: "Due",
+        collected: "Paid", remaining: "Remaining", penalty: "Penalty", statusPaid: "Paid", statusPartial: "Partially Paid", statusPending: "Pending",
+        paymentDetails: "Payment Details", recordPayment: "Record Payment", originalInstallment: "Original installment", paymentDate: "Payment Date",
+        paymentTime: "Payment Time", calculation: "Calculation", totalDue: "Total due", validDate: "Enter a valid payment date and time to see the calculation.",
+        amountToCollect: "Amount to collect", enterAmount: "Enter amount", manualOverride: "Manual amount override",
+        overrideDescription: "Turn this on only when the actual collected amount intentionally differs from the calculated amount.", overrideReason: "Override Reason *",
+        enterReason: "Enter reason for changing the amount", cancel: "Cancel", confirm: "Confirm", done: "DONE", paidButton: "PAID",
+        loading: "Loading monthly payments...", error: "Error", alreadyPaid: "Already Paid", alreadyPaidMessage: "This month's payment is already fully paid.",
+        preparePayment: "Unable to prepare the payment.", reverseTitle: "Move Payment Back to Pending?", reverseButton: "Reverse Payment", reversed: "Payment Reversed",
+        invalidAmount: "Invalid Amount", validAmount: "Please enter a valid payment amount.", invalidDate: "Invalid Payment Date",
+        validDateTime: "Please enter a valid date and time.\n\nDate: DD/MM/YYYY\nTime: HH:MM", reasonRequired: "Reason Required",
+        reasonRequiredMessage: "Please enter a reason for the manual amount override.", amountTooHigh: "Amount Too High", confirmPayment: "Confirm Payment",
+        manualYes: "Manual override: YES", manualNo: "Manual override: NO", paymentRecorded: "Payment Recorded", ok: "OK", savePaymentError: "Unable to save the payment."
+    };
+
     const navigation =
         useNavigation<MonthlyPaymentsNavigationProp>();
 
@@ -518,8 +554,8 @@ export default function MonthlyPaymentsScreen() {
                     );
 
                     Alert.alert(
-                        "Error",
-                        "Unable to load monthly payments."
+                        text.error,
+                        language === "Gujarati" ? "માસિક ચુકવણીઓ લોડ થઈ શકી નથી." : "Unable to load monthly payments."
                     );
                 } finally {
                     setLoading(false);
@@ -554,8 +590,8 @@ export default function MonthlyPaymentsScreen() {
                 "paid"
             ) {
                 Alert.alert(
-                    "Already Paid",
-                    "This month's payment is already fully paid."
+                    text.alreadyPaid,
+                    text.alreadyPaidMessage
                 );
 
                 return;
@@ -640,8 +676,8 @@ export default function MonthlyPaymentsScreen() {
             );
 
             Alert.alert(
-                "Error",
-                "Unable to prepare the payment."
+                text.error,
+                text.preparePayment
             );
         }
     };
@@ -693,17 +729,17 @@ export default function MonthlyPaymentsScreen() {
                 sortedPayments[0];
 
             Alert.alert(
-                "Move Payment Back to Pending?",
+                text.reverseTitle,
                 `The latest payment of ₹${latestPayment.actualCollectedAmount.toFixed(2)} for ${row.member.name} will be reversed.
 
 This will remove that payment record and recalculate the monthly status.`,
                 [
                     {
-                        text: "Cancel",
+                        text: text.cancel,
                         style: "cancel",
                     },
                     {
-                        text: "Reverse Payment",
+                        text: text.reverseButton,
                         style: "destructive",
                         onPress: async () => {
                             try {
@@ -741,7 +777,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                 await loadMonthlyPayments();
 
                                 Alert.alert(
-                                    "Payment Reversed",
+                                    text.reversed,
                                     `${row.member.name}'s latest payment has been moved back to Pending.`
                                 );
                             } catch (error) {
@@ -751,8 +787,8 @@ This will remove that payment record and recalculate the monthly status.`,
                                 );
 
                                 Alert.alert(
-                                    "Error",
-                                    "Unable to reverse the payment."
+                                    text.error,
+                                    language === "Gujarati" ? "ચુકવણી રિવર્સ થઈ શકી નથી." : "Unable to reverse the payment."
                                 );
                             }
                         },
@@ -766,8 +802,8 @@ This will remove that payment record and recalculate the monthly status.`,
             );
 
             Alert.alert(
-                "Error",
-                "Unable to prepare the payment reversal."
+                text.error,
+                language === "Gujarati" ? "ચુકવણી રિવર્સલ તૈયાર કરી શકાઈ નથી." : "Unable to prepare the payment reversal."
             );
         }
     };
@@ -806,8 +842,8 @@ This will remove that payment record and recalculate the monthly status.`,
 
             if (!Number.isFinite(amount) || amount <= 0) {
                 Alert.alert(
-                    "Invalid Amount",
-                    "Please enter a valid payment amount."
+                    text.invalidAmount,
+                    text.validAmount
                 );
                 return;
             }
@@ -816,7 +852,7 @@ This will remove that payment record and recalculate the monthly status.`,
 
             if (!selectedDate) {
                 Alert.alert(
-                    "Invalid Payment Date",
+                    text.invalidDate,
                     "Please enter a valid date and time.\\n\\nDate: DD/MM/YYYY\\nTime: HH:MM"
                 );
                 return;
@@ -824,8 +860,8 @@ This will remove that payment record and recalculate the monthly status.`,
 
             if (manualOverride && !overrideReason.trim()) {
                 Alert.alert(
-                    "Reason Required",
-                    "Please enter a reason for the manual amount override."
+                    text.reasonRequired,
+                    text.reasonRequiredMessage
                 );
                 return;
             }
@@ -850,7 +886,7 @@ This will remove that payment record and recalculate the monthly status.`,
 
                 if (amount > remainingBeforePayment) {
                     Alert.alert(
-                        "Amount Too High",
+                        text.amountTooHigh,
                         `Maximum amount that can be collected now is ₹${remainingBeforePayment.toFixed(2)}.`
                     );
                     return;
@@ -870,11 +906,11 @@ This will remove that payment record and recalculate the monthly status.`,
                 const cleanedOverrideReason = overrideReason.trim();
 
                 Alert.alert(
-                    "Confirm Payment",
+                    text.confirmPayment,
                     `Member: ${member.name}\\n\\n` +
                     `Payment date: ${selectedDate.toLocaleDateString()}\\n` +
                     `Payment time: ${selectedDate.toLocaleTimeString()}\\n\\n` +
-                    `Original installment: ₹${obligation.originalInstallment.toFixed(2)}\\n` +
+                    `{text.originalInstallment}: ₹${obligation.originalInstallment.toFixed(2)}\\n` +
                     `Calculated penalty: ₹${calculation.penalty.toFixed(2)}\\n` +
                     `Calculated total due: ₹${totalDue.toFixed(2)}\\n` +
                     `Already paid: ₹${alreadyPaid.toFixed(2)}\\n` +
@@ -882,14 +918,14 @@ This will remove that payment record and recalculate the monthly status.`,
                     `Remaining: ₹${newRemainingAmount.toFixed(2)}\\n\\n` +
                     (manualOverride
                         ? `Manual override: YES\\nReason: ${cleanedOverrideReason}`
-                        : "Manual override: NO"),
+                        : text.manualNo),
                     [
                         {
-                            text: "Cancel",
+                            text: text.cancel,
                             style: "cancel",
                         },
                         {
-                            text: "Confirm",
+                            text: text.confirm,
                             onPress: async () => {
                                 await savePayment(
                                     selectedRow,
@@ -911,13 +947,13 @@ This will remove that payment record and recalculate the monthly status.`,
                 );
             } catch (error) {
                 console.error(
-                    "Confirm payment error:",
+                    "{text.confirm} payment error:",
                     error
                 );
 
                 Alert.alert(
-                    "Error",
-                    "Unable to process the payment."
+                    text.error,
+                    language === "Gujarati" ? "ચુકવણી પ્રક્રિયા થઈ શકી નથી." : "Unable to process the payment."
                 );
             }
         };
@@ -1043,17 +1079,17 @@ This will remove that payment record and recalculate the monthly status.`,
                 closePaymentDialog();
 
                 Alert.alert(
-                    "Payment Recorded",
+                    text.paymentRecorded,
                     `₹${amount.toFixed(
                         2
                     )} collected from ${row.member.name}.\n\n` +
-                    `Payment date: ${selectedDate.toLocaleDateString()}\n` +
+                    `${text.paymentDate}: ${selectedDate.toLocaleDateString()}\n` +
                     `Penalty: ₹${calculatedPenalty.toFixed(
                         2
                     )}`,
                     [
                         {
-                            text: "OK",
+                            text: text.ok,
                             onPress:
                             loadMonthlyPayments,
                         },
@@ -1066,8 +1102,8 @@ This will remove that payment record and recalculate the monthly status.`,
                 );
 
                 Alert.alert(
-                    "Error",
-                    "Unable to save the payment."
+                    text.error,
+                    text.savePaymentError
                 );
             }
         };
@@ -1102,7 +1138,7 @@ This will remove that payment record and recalculate the monthly status.`,
                         styles.loadingText
                     }
                 >
-                    Loading monthly payments...
+                    {text.loading}
                 </Text>
             </View>
         );
@@ -1137,7 +1173,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                 styles.backText
                             }
                         >
-                            ← Back
+                            {text.back}
                         </Text>
                     </TouchableOpacity>
 
@@ -1146,7 +1182,7 @@ This will remove that payment record and recalculate the monthly status.`,
                             styles.title
                         }
                     >
-                        Monthly Payments
+                        {text.monthlyPayments}
                     </Text>
 
                     <Text
@@ -1241,7 +1277,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                 styles.emptyTitle
                             }
                         >
-                            No active members
+                            {text.noActiveMembers}
                         </Text>
 
                         <Text
@@ -1249,9 +1285,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                 styles.emptyText
                             }
                         >
-                            Add an active member
-                            to start monthly
-                            payments.
+                            {text.addActiveMember}
                         </Text>
                     </View>
                 ) : (
@@ -1389,8 +1423,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                     styles.detailsButtonText
                                                 }
                                             >
-                                                Payment
-                                                Details
+                                                {text.paymentDetails}
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
@@ -1423,8 +1456,8 @@ This will remove that payment record and recalculate the monthly status.`,
                                             {
                                                 obligation.status ===
                                                 "paid"
-                                                    ? "PAID"
-                                                    : "DONE"
+                                                    ? text.paidButton
+                                                    : text.done
                                             }
                                         </Text>
                                     </TouchableOpacity>
@@ -1464,7 +1497,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                 styles.panelTitle
                                             }
                                         >
-                                            Record Payment
+                                            {text.recordPayment}
                                         </Text>
 
                                         <Text
@@ -1484,7 +1517,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                 styles.panelInfo
                                             }
                                         >
-                                            Original installment:
+                                            {text.originalInstallment}:
                                             {" "}
                                             ₹
                                             {selectedRow.obligation.originalInstallment.toFixed(
@@ -1497,9 +1530,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                 styles.inputLabel
                                             }
                                         >
-                                            Payment Date
-                                            {" "}
-                                            (DD/MM/YYYY)
+                                            {text.paymentDate} (DD/MM/YYYY)
                                         </Text>
 
                                         <TextInput
@@ -1522,9 +1553,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                 styles.inputLabel
                                             }
                                         >
-                                            Payment Time
-                                            {" "}
-                                            (HH:MM)
+                                            {text.paymentTime} (HH:MM)
                                         </Text>
 
                                         <TextInput
@@ -1553,7 +1582,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                         styles.calculationTitle
                                                     }
                                                 >
-                                                    Calculation
+                                                    {text.calculation}
                                                 </Text>
 
                                                 <Text
@@ -1561,8 +1590,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                         styles.panelInfo
                                                     }
                                                 >
-                                                    Penalty:
-                                                    {" "}
+                                                    {text.penalty}: {" "}
                                                     ₹
                                                     {selectedCalculation.penalty.toFixed(
                                                         2
@@ -1574,7 +1602,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                         styles.panelInfo
                                                     }
                                                 >
-                                                    Total due:
+                                                    {text.totalDue}:
                                                     {" "}
                                                     ₹
                                                     {selectedCalculation.totalDue.toFixed(
@@ -1588,9 +1616,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                     styles.invalidDateText
                                                 }
                                             >
-                                                Enter a valid payment
-                                                date and time to see
-                                                the calculation.
+                                                {text.validDate}
                                             </Text>
                                         )}
 
@@ -1599,7 +1625,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                 styles.inputLabel
                                             }
                                         >
-                                            Amount to collect
+                                            {text.amountToCollect}
                                         </Text>
 
                                         <TextInput
@@ -1613,7 +1639,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                 setPaymentAmount
                                             }
                                             keyboardType="decimal-pad"
-                                            placeholder="Enter amount"
+                                            placeholder={text.enterAmount}
                                         />
 
                                         <View
@@ -1631,7 +1657,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                         styles.overrideTitle
                                                     }
                                                 >
-                                                    Manual amount override
+                                                    {text.manualOverride}
                                                 </Text>
 
                                                 <Text
@@ -1664,7 +1690,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                         styles.inputLabel
                                                     }
                                                 >
-                                                    Override Reason *
+                                                    {text.overrideReason}
                                                 </Text>
 
                                                 <TextInput
@@ -1675,7 +1701,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                     onChangeText={
                                                         setOverrideReason
                                                     }
-                                                    placeholder="Enter reason for changing the amount"
+                                                    placeholder={text.enterReason}
                                                     multiline
                                                     textAlignVertical="top"
                                                 />
@@ -1700,7 +1726,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                         styles.cancelButtonText
                                                     }
                                                 >
-                                                    Cancel
+                                                    {text.cancel}
                                                 </Text>
                                             </TouchableOpacity>
 
@@ -1717,7 +1743,7 @@ This will remove that payment record and recalculate the monthly status.`,
                                                         styles.confirmButtonText
                                                     }
                                                 >
-                                                    Confirm
+                                                    {text.confirm}
                                                 </Text>
                                             </TouchableOpacity>
                                         </View>

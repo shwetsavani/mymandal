@@ -40,6 +40,7 @@ import ReportsScreen from "./src/screens/ReportsScreen";
 import ExportScreen from "./src/screens/ExportScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 
+import { LanguageProvider } from "./src/localization/LanguageContext";
 import { auth } from "./src/services/firebase";
 import { signInRecoveryAccount } from "./src/services/firebaseAuth";
 
@@ -435,8 +436,9 @@ export default function App() {
     }
 
     return (
-        <>
-            {screen === "login" ? (
+        <LanguageProvider>
+            <>
+                {screen === "login" ? (
                 <LoginScreen
                     onLoginSuccess={async () => {
                         setScreen("app");
@@ -671,7 +673,8 @@ export default function App() {
                     </View>
                 </View>
             </Modal>
-        </>
+            </>
+        </LanguageProvider>
     );
 }
 

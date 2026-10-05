@@ -9,6 +9,7 @@ import {
     View,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useLanguage } from "../localization/LanguageContext";
 
 type Member = {
     id: string;
@@ -72,20 +73,36 @@ const MEMBERS_KEY = "mandal_members";
 const OBLIGATIONS_KEY = "mandal_monthly_obligations";
 const PAYMENTS_KEY = "mandal_payments";
 
-const monthNames = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-];
+const monthNames = {
+    English: [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ],
+    Gujarati: [
+        "જાન્યુઆરી",
+        "ફેબ્રુઆરી",
+        "માર્ચ",
+        "એપ્રિલ",
+        "મે",
+        "જૂન",
+        "જુલાઈ",
+        "ઑગસ્ટ",
+        "સપ્ટેમ્બર",
+        "ઑક્ટોબર",
+        "નવેમ્બર",
+        "ડિસેમ્બર",
+    ],
+};
 
 const readStorage = async <T,>(
     key: string,
@@ -129,8 +146,15 @@ const formatDateTime = (value: string) => {
 };
 
 const getStatusLabel = (
-    status: MonthlyObligationStatus
+    status: MonthlyObligationStatus,
+    language: "English" | "Gujarati"
 ) => {
+    if (language === "Gujarati") {
+        if (status === "paid") return "ચૂકવેલ";
+        if (status === "partially_paid") return "આંશિક ચૂકવેલ";
+        if (status === "overdue") return "મુદત વીતી ગયેલ";
+        return "બાકી";
+    }
     if (status === "paid") return "Paid";
     if (status === "partially_paid") return "Partially Paid";
     if (status === "overdue") return "Overdue";
@@ -139,6 +163,65 @@ const getStatusLabel = (
 
 export default function HistoryScreen() {
     const navigation = useNavigation();
+    const { language } = useLanguage();
+
+    const text = language === "Gujarati"
+        ? {
+            loading: "ઇતિહાસ લોડ થઈ રહ્યો છે...",
+            back: "← પાછા",
+            history: "ઇતિહાસ",
+            monthlyRecords: "માસિક ચુકવણી રેકોર્ડ",
+            noHistory: (y: number) => `${y} માટે કોઈ ઇતિહાસ નથી`,
+            recordsAppear: "Obligations બનાવ્યા પછી માસિક રેકોર્ડ અહીં દેખાશે.",
+            member: "સભ્ય",
+            members: "સભ્યો",
+            original: "મૂળ",
+            penalty: "દંડ",
+            collected: "વસૂલ થયેલ",
+            pending: "બાકી",
+            installment: "હપ્તો",
+            totalDue: "કુલ ચૂકવવાનું",
+            paid: "ચૂકવેલ",
+            paymentHistory: "ચુકવણી ઇતિહાસ",
+            noPayments: "આ મહિના માટે કોઈ ચુકવણી નોંધાયેલ નથી.",
+            payment: "ચુકવણી",
+            manualOverride: "મેન્યુઅલ ઓવરરાઇડ",
+            reason: "કારણ",
+            noReason: "કોઈ કારણ નોંધાયેલ નથી",
+            calculated: "ગણતરી કરેલ",
+            unavailable: "સભ્યનો રેકોર્ડ ઉપલબ્ધ નથી",
+            error: "ભૂલ",
+            unableLoad: "ચુકવણી ઇતિહાસ લોડ કરી શકાયો નથી.",
+            unableMonth: "આ મહિનાનો ઇતિહાસ લોડ કરી શકાયો નથી.",
+        }
+        : {
+            loading: "Loading history...",
+            back: "← Back",
+            history: "History",
+            monthlyRecords: "Monthly payment records",
+            noHistory: (y: number) => `No history for ${y}`,
+            recordsAppear: "Monthly records will appear here after obligations are created.",
+            member: "member",
+            members: "members",
+            original: "Original",
+            penalty: "Penalty",
+            collected: "Collected",
+            pending: "Pending",
+            installment: "Installment",
+            totalDue: "Total Due",
+            paid: "Paid",
+            paymentHistory: "Payment History",
+            noPayments: "No payments recorded for this month.",
+            payment: "Payment",
+            manualOverride: "Manual Override",
+            reason: "Reason",
+            noReason: "No reason recorded",
+            calculated: "Calculated",
+            unavailable: "Member record unavailable",
+            error: "Error",
+            unableLoad: "Unable to load payment history.",
+            unableMonth: "Unable to load this month history.",
+        };
 
     const [loading, setLoading] = useState(true);
     const [year, setYear] = useState(
@@ -209,7 +292,7 @@ export default function HistoryScreen() {
 
             Alert.alert(
                 "Error",
-                "Unable to load payment history."
+                text.unableLoad
             );
         } finally {
             setLoading(false);
@@ -291,7 +374,7 @@ export default function HistoryScreen() {
 
             Alert.alert(
                 "Error",
-                "Unable to load this month's history."
+                text.unableMonth
             );
         }
     };
@@ -336,7 +419,7 @@ export default function HistoryScreen() {
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" />
                 <Text style={styles.loadingText}>
-                    Loading history...
+                    {text.loading}
                 </Text>
             </View>
         );
@@ -356,16 +439,16 @@ export default function HistoryScreen() {
                         }
                     >
                         <Text style={styles.backText}>
-                            ← Back
+                            {text.back}
                         </Text>
                     </TouchableOpacity>
 
                     <Text style={styles.title}>
-                        History
+                        {text.history}
                     </Text>
 
                     <Text style={styles.subtitle}>
-                        Monthly payment records
+                        {text.monthlyRecords}
                     </Text>
                 </View>
 
@@ -416,15 +499,13 @@ export default function HistoryScreen() {
                         <Text
                             style={styles.emptyTitle}
                         >
-                            No history for {year}
+                            {text.noHistory(year)}
                         </Text>
 
                         <Text
                             style={styles.emptyText}
                         >
-                            Monthly records will appear
-                            here after obligations are
-                            created.
+                            {text.recordsAppear}
                         </Text>
                     </View>
                 ) : (
@@ -474,12 +555,7 @@ export default function HistoryScreen() {
                                                         styles.monthTitle
                                                     }
                                                 >
-                                                    {
-                                                        monthNames[
-                                                        month.month -
-                                                        1
-                                                            ]
-                                                    }
+                                                    {monthNames[language][month.month - 1]}
                                                 </Text>
 
                                                 <Text
@@ -487,18 +563,9 @@ export default function HistoryScreen() {
                                                         styles.memberCount
                                                     }
                                                 >
-                                                    {
-                                                        month
-                                                            .obligations
-                                                            .length
-                                                    }{" "}
-                                                    member
-                                                    {month
-                                                        .obligations
-                                                        .length ===
-                                                    1
-                                                        ? ""
-                                                        : "s"}
+                                                    {month.obligations.length === 1
+                                                        ? text.member
+                                                        : text.members}
                                                 </Text>
                                             </View>
 
@@ -528,7 +595,7 @@ export default function HistoryScreen() {
                                                         styles.summaryLabel
                                                     }
                                                 >
-                                                    Original
+                                                    {text.original}
                                                 </Text>
                                                 <Text
                                                     style={
@@ -551,7 +618,7 @@ export default function HistoryScreen() {
                                                         styles.summaryLabel
                                                     }
                                                 >
-                                                    Penalty
+                                                    {text.penalty}
                                                 </Text>
                                                 <Text
                                                     style={
@@ -574,7 +641,7 @@ export default function HistoryScreen() {
                                                         styles.summaryLabel
                                                     }
                                                 >
-                                                    Collected
+                                                    {text.collected}
                                                 </Text>
                                                 <Text
                                                     style={
@@ -597,7 +664,7 @@ export default function HistoryScreen() {
                                                         styles.summaryLabel
                                                     }
                                                 >
-                                                    Pending
+                                                    {text.pending}
                                                 </Text>
                                                 <Text
                                                     style={
@@ -668,7 +735,7 @@ export default function HistoryScreen() {
                                                                             }
                                                                         >
                                                                             {row.member?.name ??
-                                                                                "Member record unavailable"}
+                                                                                text.unavailable}
                                                                         </Text>
 
                                                                         {row.member && (
@@ -692,9 +759,8 @@ export default function HistoryScreen() {
                                                                         }
                                                                     >
                                                                         {getStatusLabel(
-                                                                            row
-                                                                                .obligation
-                                                                                .status
+                                                                            row.obligation.status,
+                                                                            language
                                                                         )}
                                                                     </Text>
                                                                 </View>
@@ -709,7 +775,7 @@ export default function HistoryScreen() {
                                                                             styles.memberSummaryText
                                                                         }
                                                                     >
-                                                                        Installment:{" "}
+                                                                        {text.installment}:{" "}
                                                                         {formatCurrency(
                                                                             row
                                                                                 .obligation
@@ -722,7 +788,7 @@ export default function HistoryScreen() {
                                                                             styles.memberSummaryText
                                                                         }
                                                                     >
-                                                                        Penalty:{" "}
+                                                                        {text.penalty}:{" "}
                                                                         {formatCurrency(
                                                                             row
                                                                                 .obligation
@@ -735,7 +801,7 @@ export default function HistoryScreen() {
                                                                             styles.memberSummaryText
                                                                         }
                                                                     >
-                                                                        Total Due:{" "}
+                                                                        {text.totalDue}:{" "}
                                                                         {formatCurrency(
                                                                             row
                                                                                 .obligation
@@ -748,7 +814,7 @@ export default function HistoryScreen() {
                                                                             styles.memberSummaryText
                                                                         }
                                                                     >
-                                                                        Paid:{" "}
+                                                                        {text.paid}:{" "}
                                                                         {formatCurrency(
                                                                             row
                                                                                 .obligation
@@ -761,7 +827,7 @@ export default function HistoryScreen() {
                                                                             styles.memberSummaryText
                                                                         }
                                                                     >
-                                                                        Pending:{" "}
+                                                                        {text.pending}:{" "}
                                                                         {formatCurrency(
                                                                             row
                                                                                 .obligation
@@ -782,7 +848,7 @@ export default function HistoryScreen() {
                                                                             styles.paymentHistoryTitle
                                                                         }
                                                                     >
-                                                                        Payment History
+                                                                        {text.paymentHistory}
                                                                     </Text>
 
                                                                     {row
@@ -794,9 +860,7 @@ export default function HistoryScreen() {
                                                                                 styles.noPayments
                                                                             }
                                                                         >
-                                                                            No payments recorded
-                                                                            for this
-                                                                            month.
+                                                                            {text.noPayments}
                                                                         </Text>
                                                                     ) : (
                                                                         row.payments.map(
@@ -822,7 +886,7 @@ export default function HistoryScreen() {
                                                                                                 styles.paymentNumber
                                                                                             }
                                                                                         >
-                                                                                            Payment{" "}
+                                                                                            {text.payment}{" "}
                                                                                             {index +
                                                                                                 1}
                                                                                         </Text>
@@ -859,7 +923,7 @@ export default function HistoryScreen() {
                                                                                                     styles.overrideLabel
                                                                                                 }
                                                                                             >
-                                                                                                Manual Override
+                                                                                                {text.manualOverride}
                                                                                             </Text>
 
                                                                                             <Text
@@ -867,9 +931,9 @@ export default function HistoryScreen() {
                                                                                                     styles.overrideReason
                                                                                                 }
                                                                                             >
-                                                                                                Reason:{" "}
+                                                                                                {text.reason}:{" "}
                                                                                                 {payment.overrideReason ??
-                                                                                                    "No reason recorded"}
+                                                                                                    text.noReason}
                                                                                             </Text>
 
                                                                                             <Text
@@ -877,7 +941,7 @@ export default function HistoryScreen() {
                                                                                                     styles.overrideCalculated
                                                                                                 }
                                                                                             >
-                                                                                                Calculated:{" "}
+                                                                                                {text.calculated}:{" "}
                                                                                                 {formatCurrency(
                                                                                                     payment.calculatedAmount
                                                                                                 )}
