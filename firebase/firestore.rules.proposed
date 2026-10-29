@@ -1,0 +1,50 @@
+// PROPOSED owner-only Firestore rules for My Mandal. NOT DEPLOYED.
+//
+// Review in the Firebase console (Firestore > Rules) and test with the Rules
+// Playground before publishing. The current live rules were not inspected
+// from this repository; compare carefully before replacing them.
+//
+// - Only the signed-in, email-verified owner can read their own tree.
+// - Backup snapshots are append-only: create allowed, update/delete denied,
+//   so a stale phone can never overwrite or remove an existing backup.
+// - The legacy mirror collections written by app version 1.0.0 stay readable
+//   by the owner. Writes are still allowed so the existing 1.0.0 APK keeps
+//   working until it is replaced; tighten to `allow write: if false;` after
+//   every phone runs 1.1.0.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null
+        && request.auth.uid == uid
+        && request.auth.token.email_verified == true;
+    }
+
+    match /mandals/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /members/{id} { allow read, write: if isOwner(uid); }
+      match /obligations/{id} { allow read, write: if isOwner(uid); }
+      match /payments/{id} { allow read, write: if isOwner(uid); }
+
+      match /backups/{backupId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && request.resource.data.complete == true
+          && request.resource.data.chunkCount is int
+          && request.resource.data.chunkCount > 0;
+        allow update, delete: if false;
+
+        match /chunks/{index} {
+          allow read: if isOwner(uid);
+          allow create: if isOwner(uid) && request.resource.data.data is string;
+          allow update, delete: if false;
+        }
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

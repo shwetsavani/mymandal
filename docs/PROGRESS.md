@@ -69,12 +69,32 @@ Branch: `repair/financial-integrity-v2`. Target app version 1.1.0, package `com.
 - `src/backup/localBackup.ts`, `backupStatus.ts`, `src/ui/RestoreDialog.tsx` (typed RESTORE for destructive restore). `parseAnyBackup` also accepts the read-only Firestore export file.
 - Removed: AddMember, PaymentDetails, `src/database/*`, `src/utils/*`, `cloudSync.ts` (automatic last-writer-wins upload + cloud deletes), `syncDeletionStorage.ts`. The `mandal_cloud_deleted_records` key is left untouched.
 
+### Stage 4 — cloud backups, reminders, PIN recovery, release config
+- `src/backup/cloudChunks.ts`: chunking (300k chars), ordered reassembly with count + SHA-256 check, `assessRecoveryIdentity` (verified email, matches setup email, matches cloud owner uid if recorded).
+- `src/services/cloudBackup.ts`: manual "Back up now" only. Uploads immutable snapshots to `mandals/{uid}/backups/{id}` (+ `chunks/{n}`); metadata written last with `complete: true`; reads back and verifies before reporting success; records the owner uid on first success. Legacy mirror `mandals/{uid}` is read-only (restore source, never written or deleted).
+- `src/screens/settings/CloudBackupSection.tsx`: sign in with recovery password, back up, list/restore complete backups, restore from legacy mirror (all restores go through validation + typed confirmation + pre-restore snapshot).
+- `firebase/firestore.rules.proposed`: owner-only, email-verified, create-only backups. NOT deployed.
+- `src/services/reminderPlan.ts` (pure) + `src/services/reminders.ts`: one local notification `my-mandal-month-end`, Android channel `monthly-dues`, default OFF and 10:00 IST on the 1st of the next month, configurable time; cancelled when nobody owes installment for the month; rescheduled on startup, foreground, and every financial change. Old reminder settings are not overwritten until the user changes them.
+- `src/screens/settings/ReminderSection.tsx`: toggle (asks permission, links to Android settings if denied), time, permission status, platform-limit explanation.
+- `src/screens/ForgotPinScreen.tsx`: fresh Firebase sign-in + reload + `assessRecoveryIdentity` before allowing a new PIN; resets throttle on success.
+- `app.json`: version 1.1.0, `expo-notifications` plugin; package and EAS projectId unchanged. `eas.json`: `autoIncrement` for preview.
+- Validation: `npx expo export --platform android` bundles (988 modules); `npx expo config` shows package `com.savani.mymandal`, version 1.1.0.
+
 ## Tests
 | Stage | Suites | Result |
 |---|---|---|
 | 1 | storage, migration, pinSecurity, backupRestore | 33 passed |
 | 2 | penaltyEngine, operations, financeService | 64 passed (97 total) |
 | 3 | exportsAndScreens | 6 passed (103 total) |
+| 4 | cloudAndReminders | 14 passed (117 total) |
 
-## Remaining work
-- Stage 4: cloud snapshot backups, notifications, forgot PIN, app.json/eas.json, release validation.
+## Release status: BLOCKED
+- The original APK signing certificate could not be verified from this machine. Do not install until `eas credentials` (Android, `com.savani.mymandal`) SHA-256 matches `apksigner verify --print-certs` of the installed APK.
+- Firestore mirror is still unverified; run `npm run firestore:export -- --compare <in-app JSON backup>` first.
+- `npx expo install --check` suggests patch updates (expo 57.0.31, expo-dev-client 57.0.20, expo-notifications 57.0.24, expo-sharing 57.0.24); not applied.
+
+## Not done / limitations
+- Add Member is intentionally absent; a fresh install can only get members by restoring a backup.
+- Live Firestore rules unknown; cloud backup upload may be denied until the proposed rules (or equivalent) are reviewed and deployed by the owner.
+- Reminders are local, computed when the app last ran; delivery may be slightly late (no exact-alarm permission).
+- Tested with unit tests only; no device/emulator run in this environment.

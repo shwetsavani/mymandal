@@ -2,7 +2,7 @@
   "expo": {
     "name": "my-mandal",
     "slug": "my-mandal",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -24,7 +24,8 @@
     },
     "plugins": [
       "expo-sharing",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-notifications"
     ],
     "extra": {
       "eas": {
