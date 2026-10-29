@@ -222,6 +222,52 @@ export const validateBackup = (parsed: MandalBackup): BackupValidation => {
     return { ok: errors.length === 0, errors, warnings: result.warnings, backup: errors.length === 0 ? parsed : null };
 };
 
+const stripSyncFields = <T extends object>(records: unknown[]): T[] =>
+    records.map((record) => {
+        const { syncedAt: _syncedAt, ...rest } = (record ?? {}) as Record<string, unknown>;
+        return rest as T;
+    });
+
+/**
+ * Accepts either a My Mandal backup file or the JSON written by
+ * tools/firestore-readonly-export.mjs (legacy cloud mirror), and returns a
+ * validated backup. A legacy mirror is flagged so the UI can warn that it is
+ * an unverified copy.
+ */
+export const parseAnyBackup = (json: string, appVersion: string): BackupValidation & { legacyMirror: boolean } => {
+    let parsed: any;
+    try {
+        parsed = JSON.parse(json);
+    } catch {
+        return { ok: false, errors: ["The file is not valid JSON."], warnings: [], backup: null, legacyMirror: false };
+    }
+    if (parsed?.kind === "my-mandal-firestore-readonly-export") {
+        const state: FinancialState = {
+            members: stripSyncFields(parsed.members ?? []),
+            obligations: stripSyncFields(parsed.obligations ?? []),
+            payments: stripSyncFields(parsed.payments ?? []),
+            waivers: [],
+            auditLog: [],
+            settings: {},
+        };
+        const backup = buildBackup({
+            state,
+            setup: null,
+            appVersion,
+            schemaVersion: 1,
+            source: "legacy-cloud-mirror",
+            createdAt: parsed.exportedAt,
+        });
+        const result = validateBackup(backup);
+        return {
+            ...result,
+            warnings: ["This is a copy of the old cloud mirror. Compare it with your records before relying on it.", ...result.warnings],
+            legacyMirror: true,
+        };
+    }
+    return { ...validateBackup(parsed), legacyMirror: false };
+};
+
 /** A restore that would remove members or payments needs typed confirmation. */
 export const isDestructiveRestore = (current: FinancialState, incoming: BackupData): boolean =>
     incoming.members.length === 0 ||

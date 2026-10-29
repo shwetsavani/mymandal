@@ -5,6 +5,7 @@ import {
     closeMembership,
     correctPaymentDate,
     ensureObligation,
+    FinanceError,
     generateObligations,
     recordPayment,
     resetMonthPayments,
@@ -16,8 +17,10 @@ import {
     type PaymentInput,
     type WaiverInput,
 } from "../domain/operations";
-import type { FinancialState } from "../domain/types";
-import { loadFinancialState, mutateFinancialState } from "../storage/repository";
+import type { FinancialState, MandalSetup } from "../domain/types";
+import { KEYS } from "../storage/keys";
+import { loadFinancialState, mutateFinancialState, readSetup } from "../storage/repository";
+import { commitJournaled, withStorageLock } from "../storage/safeStorage";
 
 /**
  * Storage-backed wrappers around the pure operations. Each one re-reads the
@@ -93,6 +96,24 @@ export const submitCancelInstallmentChange = (memberId: string) =>
         state: cancelInstallmentChange(state, memberId, Date.now()),
         result: true,
     }));
+
+export const submitMandalStart = (ym: YearMonth) =>
+    mutateFinancialState("mandal-start", (state) => {
+        if (state.settings.mandalStartYear && state.settings.mandalStartMonth) {
+            throw new FinanceError("start_set", "The Mandal start month is already set.");
+        }
+        return { state: { ...state, settings: { ...state.settings, mandalStartYear: ym.year, mandalStartMonth: ym.month } }, result: true };
+    });
+
+/** Updates Mandal details (never the PIN) as one journaled write. */
+export const submitSetupInfo = (info: Pick<MandalSetup, "mandalName" | "adminName" | "mobile">) =>
+    withStorageLock(async () => {
+        const setup = await readSetup();
+        if (!setup) throw new Error("Setup not found.");
+        if (!info.mandalName.trim() || !info.adminName.trim()) throw new Error("Name fields cannot be empty.");
+        const next: MandalSetup = { ...setup, mandalName: info.mandalName.trim(), adminName: info.adminName.trim(), mobile: info.mobile.trim() };
+        await commitJournaled("setup-info", { [KEYS.setup]: JSON.stringify(next) });
+    });
 
 export const submitMembershipClosure = (memberId: string, reason: string) =>
     mutateFinancialState("close-membership", (state) => ({ state: closeMembership(state, memberId, reason, Date.now()), result: true }));

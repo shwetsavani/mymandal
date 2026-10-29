@@ -60,12 +60,21 @@ Branch: `repair/financial-integrity-v2`. Target app version 1.1.0, package `com.
 - `src/services/financeService.ts`: storage-locked, journaled wrappers.
 - Decisions: payment reversal never creates a waiver; month reset touches only payments of one obligation; corrections keep history in `payment.corrections` + audit log; waivers are effective at the moment they are recorded.
 
+### Stage 3 — screens and exports
+- `App.tsx`: everything inside `SafeAreaProvider` + `LanguageProvider` (fixes Setup crash); startup runs journal recovery + migrations + PIN migration; storage errors show `DataErrorView` (retry / raw-data export, never wipes); auto-lock reads `screenRef` (fixes stale closure) and fails closed; no startup cloud upload prompt.
+- `src/ui/` shared kit (`components.tsx`, `TotalsCard.tsx`, `selectors.ts`, `useFinance.ts` — refresh on focus, financial change, foreground, IST date change, every minute for as-of).
+- `src/localization/strings.ts`: English/Gujarati for all new UI; no placeholders or escaped `\n`.
+- Screens: Home (engine totals, older dues, needs-review, backup nudge, no Add Member), MonthlyPayments (month selector: Mandal start → +12 months), MemberMonth (new; simple collect / Pay Full Amount / manual; waive; medium "Reset This Month's Payments" with preview + reason; per-payment expand, reverse, split correction, date correction, legacy classification; waivers; penalty steps), Members (no add/delete; close membership with blocking months; scheduled change visible + cancellable), EditMember, History, Reports (obligation month vs collection date, penalty fund), Export (separate obligation CSV, transaction CSV, PDF), Settings (Mandal info, start month, change PIN via verifier, biometric toggle that respects the user's choice, language, JSON backup/restore), Login (verifier + throttle, biometric only if enabled), Setup (verifier, translated).
+- `src/export/exportBuilders.ts`: BOM, formula-safe CSV, escaped HTML, one row per transaction, one total row.
+- `src/backup/localBackup.ts`, `backupStatus.ts`, `src/ui/RestoreDialog.tsx` (typed RESTORE for destructive restore). `parseAnyBackup` also accepts the read-only Firestore export file.
+- Removed: AddMember, PaymentDetails, `src/database/*`, `src/utils/*`, `cloudSync.ts` (automatic last-writer-wins upload + cloud deletes), `syncDeletionStorage.ts`. The `mandal_cloud_deleted_records` key is left untouched.
+
 ## Tests
 | Stage | Suites | Result |
 |---|---|---|
 | 1 | storage, migration, pinSecurity, backupRestore | 33 passed |
 | 2 | penaltyEngine, operations, financeService | 64 passed (97 total) |
+| 3 | exportsAndScreens | 6 passed (103 total) |
 
 ## Remaining work
-- Stage 3: screens.
 - Stage 4: cloud snapshot backups, notifications, forgot PIN, app.json/eas.json, release validation.

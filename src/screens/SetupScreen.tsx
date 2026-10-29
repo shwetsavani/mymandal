@@ -13,6 +13,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useLanguage } from "../localization/LanguageContext";
+import { setNewPin } from "../security/pinVerifier";
 
 type Props = {
     onSetupComplete: () => void;
@@ -274,9 +275,11 @@ export default function SetupScreen({
                 adminName: adminName.trim(),
                 mobile: mobile.trim(),
                 email: email.trim().toLowerCase(),
-                pin,
                 createdAt: new Date().toISOString(),
             };
+
+            // The PIN is stored only as a salted verifier in SecureStore.
+            await setNewPin(pin);
 
             await AsyncStorage.setItem(
                 "mandal_setup",
@@ -329,11 +332,11 @@ export default function SetupScreen({
                 keyboardShouldPersistTaps="handled"
             >
                 <Text style={styles.title}>
-                    My Mandal
+                    {text.title}
                 </Text>
 
                 <Text style={styles.subtitle}>
-                    Set up your Mandal
+                    {text.subtitle}
                 </Text>
 
                 <TextInput
