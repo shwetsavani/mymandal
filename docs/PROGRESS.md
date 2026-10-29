@@ -54,12 +54,18 @@ Branch: `repair/financial-integrity-v2`. Target app version 1.1.0, package `com.
 - `tools/firestore-readonly-export.mjs` (read-only: getDoc/getDocs only; `npm run firestore:export [-- --compare backup.json]`)
 - Jest (jest-expo) + in-memory mocks; `npm test`, `npm run typecheck`.
 
+### Stage 2 — shared financial engine and operations
+- `src/domain/financeEngine.ts`: pure `computeObligation` (as-of recomputation, fixed steps, timeline, next boundary, legacy inference/unclassified), `sumSummaries` (each obligation counted once).
+- `src/domain/operations.ts` (pure): `generateObligations` (idempotent, missed months, schedule-aware, closure-aware, promotes pending changes), `ensureObligation` (advance up to 12 months), `recordPayment` (one transaction, allocation, idempotency key, commit-time validation against the balance on the received date, stale full-amount rejection), `reversePayment`, `previewMonthReset`/`resetMonthPayments`, `setPaymentAllocation` (correction + legacy classification), `correctPaymentDate`, `addWaiver`/`reverseWaiver`, `updateMemberDetails`, `scheduleInstallmentChange`/`cancelInstallmentChange`, `checkMembershipClosure`/`closeMembership`.
+- `src/services/financeService.ts`: storage-locked, journaled wrappers.
+- Decisions: payment reversal never creates a waiver; month reset touches only payments of one obligation; corrections keep history in `payment.corrections` + audit log; waivers are effective at the moment they are recorded.
+
 ## Tests
 | Stage | Suites | Result |
 |---|---|---|
 | 1 | storage, migration, pinSecurity, backupRestore | 33 passed |
+| 2 | penaltyEngine, operations, financeService | 64 passed (97 total) |
 
 ## Remaining work
-- Stage 2: finance engine, obligation generator, payments with allocation/idempotency, reversal, month reset, waivers, closure, classification.
 - Stage 3: screens.
 - Stage 4: cloud snapshot backups, notifications, forgot PIN, app.json/eas.json, release validation.
