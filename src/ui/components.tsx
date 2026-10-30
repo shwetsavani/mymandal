@@ -3,7 +3,6 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Modal,
-    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -51,7 +50,7 @@ export function Screen(props: { title: string; onBack?: () => void; children: Re
                 </Text>
                 {props.right}
             </View>
-            <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <KeyboardAvoidingView style={styles.flex} behavior="padding">
                 {body}
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -158,7 +157,7 @@ export function MonthSelector(props: { label: string; onPrev?: () => void; onNex
 export function Sheet(props: { visible: boolean; title: string; onClose: () => void; children: React.ReactNode }) {
     return (
         <Modal visible={props.visible} transparent animationType="slide" onRequestClose={props.onClose}>
-            <KeyboardAvoidingView style={styles.sheetOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <KeyboardAvoidingView style={styles.sheetOverlay} behavior="padding">
                 <View style={styles.sheet}>
                     <View style={styles.sheetHeader}>
                         <Text style={styles.sheetTitle}>{props.title}</Text>

@@ -1,107 +1,23 @@
-import React, { useState } from "react";
-import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
-import { useLanguage } from "../localization/LanguageContext";
-import { setNewPin } from "../security/pinVerifier";
+import React, { useState } from "react";
+import { Alert, KeyboardAvoidingView, ScrollView, StyleSheet, Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useStrings } from "../localization/strings";
+import { createInitialSetup, SetupExistsError } from "../security/pinVerifier";
+import { KEYS } from "../storage/keys";
+import { Button, Field, colors } from "../ui/components";
 
 type Props = {
     onSetupComplete: () => void;
 };
 
-const BIOMETRIC_ENABLED_KEY = "mandal_biometric_enabled";
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-export default function SetupScreen({
-                                        onSetupComplete,
-                                    }: Props) {
-    const { language } = useLanguage();
-
-    const text =
-        language === "Gujarati"
-            ? {
-                title: "My Mandal",
-                subtitle: "તમારું મંડળ સેટ કરો",
-                mandalName: "મંડળનું નામ",
-                adminName: "એડમિનનું નામ",
-                mobile: "મોબાઇલ નંબર",
-                recoveryEmail: "રિકવરી ઈમેઇલ",
-                createPin: "4 અંકનો PIN બનાવો",
-                confirmPin: "4 અંકનો PIN ફરી દાખલ કરો",
-                saving: "સાચવી રહ્યા છીએ...",
-                completeSetup: "સેટઅપ પૂર્ણ કરો",
-                missingTitle: "માહિતી અધૂરી છે",
-                missingMessage: "કૃપા કરીને બધી માહિતી ભરો.",
-                invalidPinTitle: "અમાન્ય PIN",
-                invalidPinMessage: "PIN માં ચોક્કસ 4 અંક હોવા જોઈએ.",
-                pinMismatchTitle: "PIN મેળ ખાતો નથી",
-                pinMismatchMessage: "PIN અને Confirm PIN મેળ ખાતા નથી.",
-                invalidEmailTitle: "અમાન્ય ઈમેઇલ",
-                invalidEmailMessage: "કૃપા કરીને માન્ય રિકવરી ઈમેઇલ દાખલ કરો.",
-                invalidMobileTitle: "અમાન્ય મોબાઇલ નંબર",
-                invalidMobileMessage: "કૃપા કરીને માન્ય મોબાઇલ નંબર દાખલ કરો.",
-                setupCompleteTitle: "સેટઅપ પૂર્ણ",
-                setupCompleteMessage: "તમારા મંડળનું સેટઅપ સફળતાપૂર્વક સેવ થયું છે.",
-                continue: "ચાલુ રાખો",
-                enableBiometricTitle: "બાયોમેટ્રિક અનલોક ચાલુ કરવું છે?",
-                enableBiometricMessage:
-                    "My Mandal ઝડપથી અનલોક કરવા માટે તમારા ફિંગરપ્રિન્ટ અથવા ચહેરાનો ઉપયોગ કરો. તમારા 4 અંકના PIN નો બેકઅપ તરીકે ઉપયોગ કરી શકશો.",
-                notNow: "હમણાં નહીં",
-                enable: "ચાલુ કરો",
-                confirmBiometric: "બાયોમેટ્રિક અનલોકની પુષ્ટિ કરો",
-                usePin: "PIN નો ઉપયોગ કરો",
-                biometricNotEnabledTitle: "બાયોમેટ્રિક ચાલુ થયું નથી",
-                biometricNotEnabledMessage:
-                    "બાયોમેટ્રિક ઓથેન્ટિકેશન પૂર્ણ થયું નથી. તમે તમારા 4 અંકના PIN નો ઉપયોગ ચાલુ રાખી શકો છો.",
-                errorTitle: "ભૂલ",
-                saveError: "સેટઅપ માહિતી સેવ કરી શકાઈ નથી.",
-            }
-            : {
-                title: "My Mandal",
-                subtitle: "Set up your Mandal",
-                mandalName: "Mandal Name",
-                adminName: "Admin Name",
-                mobile: "Mobile Number",
-                recoveryEmail: "Recovery Email",
-                createPin: "Create 4 Digit PIN",
-                confirmPin: "Confirm 4 Digit PIN",
-                saving: "Saving...",
-                completeSetup: "Complete Setup",
-                missingTitle: "Missing information",
-                missingMessage: "Please fill in all fields.",
-                invalidPinTitle: "Invalid PIN",
-                invalidPinMessage: "PIN must contain exactly 4 digits.",
-                pinMismatchTitle: "PIN mismatch",
-                pinMismatchMessage: "PIN and Confirm PIN do not match.",
-                invalidEmailTitle: "Invalid email",
-                invalidEmailMessage: "Please enter a valid recovery email.",
-                invalidMobileTitle: "Invalid mobile number",
-                invalidMobileMessage: "Please enter a valid mobile number.",
-                setupCompleteTitle: "Setup Complete",
-                setupCompleteMessage: "Your Mandal setup has been saved successfully.",
-                continue: "Continue",
-                enableBiometricTitle: "Enable Biometric Unlock?",
-                enableBiometricMessage:
-                    "Use your fingerprint or face to unlock My Mandal faster. Your 4-digit PIN will remain available as a backup.",
-                notNow: "Not Now",
-                enable: "Enable",
-                confirmBiometric: "Confirm biometric unlock",
-                usePin: "Use PIN",
-                biometricNotEnabledTitle: "Biometric Not Enabled",
-                biometricNotEnabledMessage:
-                    "Biometric authentication was not completed. You can continue using your 4-digit PIN.",
-                errorTitle: "Error",
-                saveError: "Unable to save setup information.",
-            };
+export default function SetupScreen({ onSetupComplete }: Props) {
+    const s = useStrings();
+    const t = s.setup;
 
     const [mandalName, setMandalName] = useState("");
     const [adminName, setAdminName] = useState("");
@@ -111,361 +27,156 @@ export default function SetupScreen({
     const [confirmPin, setConfirmPin] = useState("");
     const [saving, setSaving] = useState(false);
 
-    const validateEmail = (value: string) => {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-    };
+    const setBiometric = (enabled: boolean) => AsyncStorage.setItem(KEYS.biometricEnabled, enabled ? "true" : "false");
 
     const finishSetup = async () => {
-        await AsyncStorage.setItem(
-            BIOMETRIC_ENABLED_KEY,
-            "false"
-        );
-
+        await setBiometric(false);
         onSetupComplete();
     };
 
     const askToEnableBiometric = async () => {
         try {
-            const hasHardware =
-                await LocalAuthentication.hasHardwareAsync();
-
-            const isEnrolled =
-                await LocalAuthentication.isEnrolledAsync();
-
+            const hasHardware = await LocalAuthentication.hasHardwareAsync();
+            const isEnrolled = await LocalAuthentication.isEnrolledAsync();
             if (!hasHardware || !isEnrolled) {
                 await finishSetup();
                 return;
             }
-
-            Alert.alert(
-                text.enableBiometricTitle,
-                text.enableBiometricMessage,
-                [
-                    {
-                        text: text.notNow,
-                        style: "cancel",
-                        onPress: async () => {
-                            await finishSetup();
-                        },
-                    },
-                    {
-                        text: text.enable,
-                        onPress: async () => {
-                            try {
-                                const result =
-                                    await LocalAuthentication.authenticateAsync(
-                                        {
-                                            promptMessage:
-                                            text.confirmBiometric,
-                                            cancelLabel:
-                                            text.usePin,
-                                            disableDeviceFallback:
-                                                true,
-                                        }
-                                    );
-
-                                if (result.success) {
-                                    await AsyncStorage.setItem(
-                                        BIOMETRIC_ENABLED_KEY,
-                                        "true"
-                                    );
-
-                                    onSetupComplete();
-                                } else {
-                                    await AsyncStorage.setItem(
-                                        BIOMETRIC_ENABLED_KEY,
-                                        "false"
-                                    );
-
-                                    Alert.alert(
-                                        text.biometricNotEnabledTitle,
-                                        text.biometricNotEnabledMessage,
-                                        [
-                                            {
-                                                text: text.continue,
-                                                onPress:
-                                                finishSetup,
-                                            },
-                                        ]
-                                    );
-                                }
-                            } catch (error) {
-                                console.error(
-                                    "Biometric setup error:",
-                                    error
-                                );
-
-                                await AsyncStorage.setItem(
-                                    BIOMETRIC_ENABLED_KEY,
-                                    "false"
-                                );
-
-                                await finishSetup();
+            Alert.alert(t.enableBiometricTitle, t.enableBiometricMessage, [
+                { text: t.notNow, style: "cancel", onPress: () => void finishSetup() },
+                {
+                    text: t.enable,
+                    onPress: async () => {
+                        try {
+                            const result = await LocalAuthentication.authenticateAsync({
+                                promptMessage: t.confirmBiometric,
+                                cancelLabel: s.login.usePin,
+                                disableDeviceFallback: true,
+                            });
+                            if (result.success) {
+                                await setBiometric(true);
+                                onSetupComplete();
+                            } else {
+                                await setBiometric(false);
+                                Alert.alert(t.biometricNotEnabledTitle, t.biometricNotEnabledMessage, [{ text: t.continue, onPress: () => void finishSetup() }]);
                             }
-                        },
+                        } catch (error) {
+                            console.error("Biometric setup error:", error);
+                            await finishSetup();
+                        }
                     },
-                ]
-            );
+                },
+            ]);
         } catch (error) {
-            console.error(
-                "Biometric availability error:",
-                error
-            );
-
+            console.error("Biometric availability error:", error);
             await finishSetup();
         }
     };
 
     const saveSetup = async () => {
-        if (
-            !mandalName.trim() ||
-            !adminName.trim() ||
-            !mobile.trim() ||
-            !email.trim() ||
-            !pin ||
-            !confirmPin
-        ) {
-            Alert.alert(
-                text.missingTitle,
-                text.missingMessage
-            );
+        if (!mandalName.trim() || !adminName.trim() || !mobile.trim() || !email.trim() || !pin || !confirmPin) {
+            Alert.alert(t.missingTitle, t.missingMessage);
             return;
         }
-
-        if (
-            pin.length !== 4 ||
-            !/^\d{4}$/.test(pin)
-        ) {
-            Alert.alert(
-                text.invalidPinTitle,
-                text.invalidPinMessage
-            );
+        if (!/^\d{4}$/.test(pin)) {
+            Alert.alert(t.invalidPinTitle, t.invalidPinMessage);
             return;
         }
-
         if (pin !== confirmPin) {
-            Alert.alert(
-                text.pinMismatchTitle,
-                text.pinMismatchMessage
-            );
+            Alert.alert(t.pinMismatchTitle, t.pinMismatchMessage);
             return;
         }
-
-        if (!validateEmail(email.trim())) {
-            Alert.alert(
-                text.invalidEmailTitle,
-                text.invalidEmailMessage
-            );
+        if (!isValidEmail(email.trim())) {
+            Alert.alert(t.invalidEmailTitle, t.invalidEmailMessage);
             return;
         }
-
         if (!/^\d+$/.test(mobile.trim())) {
-            Alert.alert(
-                text.invalidMobileTitle,
-                text.invalidMobileMessage
-            );
+            Alert.alert(t.invalidMobileTitle, t.invalidMobileMessage);
             return;
         }
 
+        setSaving(true);
         try {
-            setSaving(true);
-
-            const setupData = {
-                mandalName: mandalName.trim(),
-                adminName: adminName.trim(),
-                mobile: mobile.trim(),
-                email: email.trim().toLowerCase(),
-                createdAt: new Date().toISOString(),
-            };
-
-            // The PIN is stored only as a salted verifier in SecureStore.
-            await setNewPin(pin);
-
-            await AsyncStorage.setItem(
-                "mandal_setup",
-                JSON.stringify(setupData)
+            await createInitialSetup(
+                {
+                    mandalName: mandalName.trim(),
+                    adminName: adminName.trim(),
+                    mobile: mobile.trim(),
+                    email: email.trim().toLowerCase(),
+                    createdAt: new Date().toISOString(),
+                },
+                pin
             );
-
-            await AsyncStorage.setItem(
-                BIOMETRIC_ENABLED_KEY,
-                "false"
-            );
-
-            Alert.alert(
-                text.setupCompleteTitle,
-                text.setupCompleteMessage,
-                [
-                    {
-                        text: text.continue,
-                        onPress: async () => {
-                            await askToEnableBiometric();
-                        },
-                    },
-                ]
-            );
+            Alert.alert(t.setupCompleteTitle, t.setupCompleteMessage, [{ text: t.continue, onPress: () => void askToEnableBiometric() }]);
         } catch (error) {
-            console.error(
-                "Setup save error:",
-                error
-            );
-
-            Alert.alert(
-                text.errorTitle,
-                text.saveError
-            );
+            console.error("Setup save error:", error);
+            Alert.alert(s.common.error, error instanceof SetupExistsError ? t.setupExists : t.saveError);
         } finally {
             setSaving(false);
         }
     };
 
     return (
-        <KeyboardAvoidingView
-            style={styles.container}
-            behavior={
-                Platform.OS === "ios"
-                    ? "padding"
-                    : undefined
-            }
-        >
-            <ScrollView
-                contentContainerStyle={styles.content}
-                keyboardShouldPersistTaps="handled"
-            >
-                <Text style={styles.title}>
-                    {text.title}
-                </Text>
+        <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+            <KeyboardAvoidingView style={styles.container} behavior="padding">
+                <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+                    <Text style={styles.title}>{t.title}</Text>
+                    <Text style={styles.subtitle}>{t.subtitle}</Text>
 
-                <Text style={styles.subtitle}>
-                    {text.subtitle}
-                </Text>
+                    <Field
+                        label={t.mandalName}
+                        placeholder={t.mandalNamePlaceholder}
+                        value={mandalName}
+                        onChangeText={setMandalName}
+                        autoCapitalize="words"
+                    />
+                    <Field
+                        label={t.adminName}
+                        placeholder={t.adminNamePlaceholder}
+                        value={adminName}
+                        onChangeText={setAdminName}
+                        autoCapitalize="words"
+                    />
+                    <Field label={t.mobile} placeholder={t.mobilePlaceholder} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" />
+                    <Field
+                        label={t.recoveryEmail}
+                        placeholder={t.recoveryEmailPlaceholder}
+                        hint={t.recoveryEmailHint}
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                    />
+                    <Field
+                        label={t.createPin}
+                        placeholder={t.createPinPlaceholder}
+                        value={pin}
+                        onChangeText={setPin}
+                        keyboardType="number-pad"
+                        maxLength={4}
+                        secureTextEntry
+                    />
+                    <Field
+                        label={t.confirmPin}
+                        placeholder={t.confirmPinPlaceholder}
+                        value={confirmPin}
+                        onChangeText={setConfirmPin}
+                        keyboardType="number-pad"
+                        maxLength={4}
+                        secureTextEntry
+                    />
 
-                <TextInput
-                    style={styles.input}
-                    placeholder={text.mandalName}
-                    value={mandalName}
-                    onChangeText={setMandalName}
-                    autoCapitalize="words"
-                />
-
-                <TextInput
-                    style={styles.input}
-                    placeholder={text.adminName}
-                    value={adminName}
-                    onChangeText={setAdminName}
-                    autoCapitalize="words"
-                />
-
-                <TextInput
-                    style={styles.input}
-                    placeholder={text.mobile}
-                    value={mobile}
-                    onChangeText={setMobile}
-                    keyboardType="phone-pad"
-                />
-
-                <TextInput
-                    style={styles.input}
-                    placeholder={text.recoveryEmail}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                />
-
-                <TextInput
-                    style={styles.input}
-                    placeholder={text.createPin}
-                    value={pin}
-                    onChangeText={setPin}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    secureTextEntry
-                />
-
-                <TextInput
-                    style={styles.input}
-                    placeholder={text.confirmPin}
-                    value={confirmPin}
-                    onChangeText={setConfirmPin}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    secureTextEntry
-                />
-
-                <TouchableOpacity
-                    style={[
-                        styles.button,
-                        saving &&
-                        styles.buttonDisabled,
-                    ]}
-                    onPress={saveSetup}
-                    disabled={saving}
-                >
-                    <Text style={styles.buttonText}>
-                        {saving
-                            ? text.saving
-                            : text.completeSetup}
-                    </Text>
-                </TouchableOpacity>
-            </ScrollView>
-        </KeyboardAvoidingView>
+                    <Button label={saving ? t.saving : t.completeSetup} onPress={() => void saveSetup()} busy={saving} />
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#FFFFFF",
-    },
-
-    content: {
-        flexGrow: 1,
-        justifyContent: "center",
-        padding: 24,
-    },
-
-    title: {
-        fontSize: 32,
-        fontWeight: "700",
-        textAlign: "center",
-        marginBottom: 8,
-    },
-
-    subtitle: {
-        fontSize: 17,
-        textAlign: "center",
-        marginBottom: 28,
-        color: "#666666",
-    },
-
-    input: {
-        height: 52,
-        borderWidth: 1,
-        borderColor: "#D1D5DB",
-        borderRadius: 10,
-        paddingHorizontal: 14,
-        fontSize: 16,
-        marginBottom: 14,
-        backgroundColor: "#FFFFFF",
-    },
-
-    button: {
-        height: 52,
-        borderRadius: 10,
-        backgroundColor: "#2563EB",
-        justifyContent: "center",
-        alignItems: "center",
-        marginTop: 8,
-    },
-
-    buttonDisabled: {
-        opacity: 0.6,
-    },
-
-    buttonText: {
-        color: "#FFFFFF",
-        fontSize: 17,
-        fontWeight: "600",
-    },
+    container: { flex: 1, backgroundColor: "#FFFFFF" },
+    content: { flexGrow: 1, padding: 24, paddingBottom: 48, gap: 4 },
+    title: { fontSize: 32, fontWeight: "700", textAlign: "center", color: colors.text, marginTop: 8 },
+    subtitle: { fontSize: 17, textAlign: "center", color: colors.muted, marginBottom: 8 },
 });

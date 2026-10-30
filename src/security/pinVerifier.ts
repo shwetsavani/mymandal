@@ -7,7 +7,7 @@ import * as SecureStore from "expo-secure-store";
 import type { MandalSetup } from "../domain/types";
 import { KEYS } from "../storage/keys";
 import { readSetup } from "../storage/repository";
-import { commitJournaled, withStorageLock } from "../storage/safeStorage";
+import { commitJournaled, readRaw, withStorageLock } from "../storage/safeStorage";
 
 export const PIN_VERIFIER_KEY = "mandal_pin_verifier_v1";
 
@@ -155,6 +155,32 @@ export const hasPinConfigured = async (): Promise<boolean> => {
     }
     const setup = await readSetup();
     return Boolean(setup?.pin);
+};
+
+export class SetupExistsError extends Error {
+    constructor() {
+        super("Setup data already exists on this phone.");
+        this.name = "SetupExistsError";
+    }
+}
+
+/**
+ * First-time setup only. Inside the storage lock it refuses to run if any
+ * setup record exists (valid or not), so an existing PIN and setup can never
+ * be overwritten by the setup screen. PIN changes, PIN recovery and Mandal
+ * detail edits use their own paths.
+ */
+export const createInitialSetup = async (details: Omit<MandalSetup, "pin" | "pinMigratedAt">, pin: string): Promise<void> => {
+    if (!/^\d{4}$/.test(pin)) throw new Error("PIN must contain exactly 4 digits.");
+    const verifier = await createPinVerifier(pin);
+    await withStorageLock(async () => {
+        if ((await readRaw(KEYS.setup)) !== null) throw new SetupExistsError();
+        await storeVerifierVerified(verifier, pin);
+        await commitJournaled("initial-setup", {
+            [KEYS.setup]: JSON.stringify(details),
+            [KEYS.biometricEnabled]: "false",
+        });
+    });
 };
 
 /** Sets a new PIN (setup, change PIN, or verified recovery). */

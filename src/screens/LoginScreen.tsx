@@ -141,6 +141,7 @@ export default function LoginScreen({ onLoginSuccess, onForgotPin }: Props) {
                         maxLength={4}
                         secureTextEntry
                         placeholder="••••"
+                        placeholderTextColor="#98A2B3"
                         textAlign="center"
                         onSubmitEditing={() => void submit()}
                     />
@@ -168,7 +169,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, justifyContent: "center", paddingHorizontal: 24, backgroundColor: "#FFF" },
     title: { fontSize: 32, fontWeight: "700", textAlign: "center", marginBottom: 10, color: colors.text },
     subtitle: { fontSize: 16, textAlign: "center", marginBottom: 24, color: colors.text },
-    pinInput: { alignSelf: "center", width: 180, height: 55, borderWidth: 1, borderColor: "#999", borderRadius: 10, fontSize: 24, marginBottom: 12 },
+    pinInput: { alignSelf: "center", width: 180, height: 55, borderWidth: 1, borderColor: "#999", borderRadius: 10, fontSize: 24, marginBottom: 12, color: colors.text, backgroundColor: "#FFF" },
     error: { color: colors.danger, textAlign: "center", marginBottom: 12 },
     button: { height: 50, borderRadius: 10, backgroundColor: colors.primary, justifyContent: "center", alignItems: "center" },
     disabled: { opacity: 0.5 },

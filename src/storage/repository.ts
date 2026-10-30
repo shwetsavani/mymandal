@@ -1,6 +1,6 @@
 import type { FinancialState, MandalSetup } from "../domain/types";
 import { KEYS } from "./keys";
-import { commitJournaled, readArray, readJson, readObject, withStorageLock } from "./safeStorage";
+import { commitJournaled, readArray, readObject, readRaw, StorageReadError, withStorageLock } from "./safeStorage";
 
 const COLLECTION_KEYS = {
     members: KEYS.members,
@@ -87,7 +87,28 @@ export const mutateFinancialState = async <R>(
     return result.outcome.result;
 };
 
+const SETUP_FIELDS = ["mandalName", "adminName", "mobile", "email", "pin", "createdAt"] as const;
+
+const looksLikeSetup = (value: unknown): value is MandalSetup =>
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    SETUP_FIELDS.some((field) => typeof (value as Record<string, unknown>)[field] === "string");
+
+/**
+ * Returns null only when no setup has ever been saved. A setup record that
+ * exists but cannot be parsed or has the wrong shape is a recovery error, so
+ * the app never treats it as a fresh install and never writes over it.
+ */
 export const readSetup = async (): Promise<MandalSetup | null> => {
-    const setup = await readJson<MandalSetup | null>(KEYS.setup, null);
-    return setup && typeof setup === "object" ? setup : null;
+    const raw = await readRaw(KEYS.setup);
+    if (raw === null) return null;
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch (error) {
+        throw new StorageReadError(KEYS.setup, "corrupt", error);
+    }
+    if (!looksLikeSetup(parsed)) throw new StorageReadError(KEYS.setup, "wrong_shape");
+    return parsed;
 };
