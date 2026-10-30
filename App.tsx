@@ -36,7 +36,7 @@ export default function App() {
     const [screen, setScreen] = useState<AppScreen>("loading");
     const [startupError, setStartupError] = useState<Error | null>(null);
     const screenRef = useRef<AppScreen>("loading");
-    const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+    const appStateRef = useRef<AppStateStatus | string | null | undefined>(AppState.currentState);
 
     const go = useCallback((next: AppScreen) => {
         screenRef.current = next;

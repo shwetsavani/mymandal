@@ -4,6 +4,7 @@ import { parseAnyBackup, type BackupValidation } from "../backup/backupFormat";
 import { recordBackupAttempt } from "../backup/backupStatus";
 import { assembleChunks, assessRecoveryIdentity, splitIntoChunks, type ChunkDoc } from "../backup/cloudChunks";
 import { APP_VERSION, createBackupObject } from "../backup/localBackup";
+import { cloudWritesAllowed } from "../config/appVariant";
 import { sha256Hex } from "../domain/checksum";
 import { loadFinancialState, mutateFinancialState, readSetup } from "../storage/repository";
 import { auth, db } from "./firebase";
@@ -63,6 +64,9 @@ let uploadInFlight: Promise<CloudBackupMeta> | null = null;
 
 export const uploadCloudBackup = (): Promise<CloudBackupMeta> => {
     if (uploadInFlight) return uploadInFlight;
+    if (!cloudWritesAllowed()) {
+        return Promise.reject(new Error("Cloud backup upload is disabled in development builds."));
+    }
     uploadInFlight = (async () => {
         try {
             const { user, ownerUid } = await requireTrustedUser();
