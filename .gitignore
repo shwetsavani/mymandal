@@ -36,6 +36,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# local financial exports (personal data, never commit)
+/exports
+
 # generated native folders
 /ios
 /android

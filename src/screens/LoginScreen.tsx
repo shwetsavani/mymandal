@@ -1,709 +1,181 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    StyleSheet,
-    Alert,
-    ActivityIndicator,
-    AppState,
-    AppStateStatus,
-} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
-import { useLanguage } from "../localization/LanguageContext";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, AppState, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useStrings } from "../localization/strings";
+import {
+    FAILURES_PER_LOCKOUT,
+    loadThrottle,
+    noteSessionLock,
+    observeClock,
+    registerFailure,
+    registerSuccess,
+    remainingLockMs,
+    saveThrottle,
+    sessionLockRemainingMs,
+} from "../security/loginThrottle";
+import { checkPin, migratePlaintextPin } from "../security/pinVerifier";
+import { KEYS } from "../storage/keys";
+import { colors } from "../ui/components";
 
 type Props = {
     onLoginSuccess: () => void;
+    onForgotPin?: () => void;
 };
 
-type LoginSecurity = {
-    failedAttempts: number;
-    lockUntil: number | null;
+const formatDuration = (ms: number) => {
+    const total = Math.ceil(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const sec = total % 60;
+    return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 };
 
-const LOGIN_SECURITY_KEY = "mandal_login_security";
-const BIOMETRIC_ENABLED_KEY = "mandal_biometric_enabled";
-
-const MAX_FAILED_ATTEMPTS = 5;
-
-export default function LoginScreen({
-                                        onLoginSuccess,
-                                    }: Props) {
-    const { language } = useLanguage();
-
-    const text =
-        language === "Gujarati"
-            ? {
-                title: "My Mandal",
-                checkingUnlock: "અનલોક વિકલ્પો તપાસી રહ્યા છીએ...",
-                appLocked: "એપ લોક છે",
-                tooManyAttempts: "ઘણા ખોટા PIN પ્રયાસો થયા છે.",
-                waitBeforeTrying: "ફરી પ્રયાસ કરતા પહેલા રાહ જુઓ.",
-                enterPin: "તમારો 4 અંકનો PIN દાખલ કરો",
-                unlock: "અનલોક કરો",
-                usePin: "PIN નો ઉપયોગ કરો",
-                unlockBiometric: "My Mandal અનલોક કરો",
-                invalidPin: "અમાન્ય PIN",
-                invalidPinMessage: "કૃપા કરીને તમારો 4 અંકનો PIN દાખલ કરો.",
-                error: "ભૂલ",
-                setupNotFound: "સેટઅપ ડેટા મળ્યો નથી.",
-                lockedFiveMinutes:
-                    "તમે 5 વખત ખોટો PIN દાખલ કર્યો છે.\\n\\nએપ 5 મિનિટ માટે લોક કરવામાં આવી છે.",
-                incorrectPin: "ખોટો PIN",
-                correctPinMessage: "કૃપા કરીને સાચો PIN દાખલ કરો.",
-                attemptsRemaining: "પ્રયાસ બાકી.",
-                somethingWentWrong: "PIN તપાસતી વખતે કંઈક ખોટું થયું.",
-            }
-            : {
-                title: "My Mandal",
-                checkingUnlock: "{text.checkingUnlock}",
-                appLocked: "App Locked",
-                tooManyAttempts: "Too many incorrect PIN attempts.",
-                waitBeforeTrying: "Please wait before trying again.",
-                enterPin: "Enter your 4-digit PIN",
-                unlock: "Unlock",
-                usePin: "Use PIN",
-                unlockBiometric: "Unlock My Mandal",
-                invalidPin: "Invalid PIN",
-                invalidPinMessage: "Please enter your 4-digit PIN.",
-                error: "Error",
-                setupNotFound: "Setup data not found.",
-                lockedFiveMinutes:
-                    "You entered the wrong PIN 5 times.\\n\\nThe app is locked for 5 minutes.",
-                incorrectPin: "Incorrect PIN",
-                correctPinMessage: "Please enter the correct PIN.",
-                attemptsRemaining: "attempts remaining.",
-                somethingWentWrong: "Something went wrong while checking the PIN.",
-            };
-
+export default function LoginScreen({ onLoginSuccess, onForgotPin }: Props) {
+    const s = useStrings();
     const [pin, setPin] = useState("");
-    const [isLocked, setIsLocked] = useState(false);
-    const [remainingSeconds, setRemainingSeconds] = useState(0);
-    const [checkingBiometric, setCheckingBiometric] = useState(true);
+    const [checking, setChecking] = useState(false);
+    const [lockMs, setLockMs] = useState(0);
+    const [message, setMessage] = useState<string | null>(null);
+    const [biometricEnabled, setBiometricEnabled] = useState(false);
+    const biometricRunning = useRef(false);
 
-    const biometricAttemptedRef = useRef(false);
-    const isAuthenticatingRef = useRef(false);
-
-    const formatRemainingTime = () => {
-        const minutes = Math.floor(remainingSeconds / 60);
-        const seconds = remainingSeconds % 60;
-
-        return `${String(minutes).padStart(2, "0")}:${String(
-            seconds
-        ).padStart(2, "0")}`;
-    };
-
-    const resetSecurityState = async () => {
-        const defaultSecurity: LoginSecurity = {
-            failedAttempts: 0,
-            lockUntil: null,
-        };
-
-        await AsyncStorage.setItem(
-            LOGIN_SECURITY_KEY,
-            JSON.stringify(defaultSecurity)
-        );
-    };
-
-    const getSecurityState = async (): Promise<LoginSecurity> => {
-        const storedSecurity = await AsyncStorage.getItem(
-            LOGIN_SECURITY_KEY
-        );
-
-        if (!storedSecurity) {
-            return {
-                failedAttempts: 0,
-                lockUntil: null,
-            };
-        }
-
-        try {
-            return JSON.parse(storedSecurity);
-        } catch {
-            return {
-                failedAttempts: 0,
-                lockUntil: null,
-            };
-        }
-    };
-
-    const checkLockState = async (): Promise<boolean> => {
-        const security = await getSecurityState();
-
-        if (
-            security.lockUntil &&
-            security.lockUntil > Date.now()
-        ) {
-            const seconds = Math.ceil(
-                (security.lockUntil - Date.now()) / 1000
-            );
-
-            setIsLocked(true);
-            setRemainingSeconds(seconds);
-
-            return true;
-        }
-
-        if (security.lockUntil) {
-            await resetSecurityState();
-        }
-
-        setIsLocked(false);
-        setRemainingSeconds(0);
-
-        return false;
-    };
-
-    /**
-     * Check whether this device supports biometric authentication.
-     */
-    const isBiometricAvailable = async (): Promise<boolean> => {
-        try {
-            const hasHardware =
-                await LocalAuthentication.hasHardwareAsync();
-
-            if (!hasHardware) {
-                return false;
-            }
-
-            const isEnrolled =
-                await LocalAuthentication.isEnrolledAsync();
-
-            return isEnrolled;
-        } catch (error) {
-            console.error(
-                "Biometric availability check failed:",
-                error
-            );
-
-            return false;
-        }
-    };
-
-    /**
-     * Automatically enable biometric authentication for existing
-     * installations if the device supports it and biometrics are enrolled.
-     *
-     * This fixes installations created before biometric support was added,
-     * where mandal_biometric_enabled does not exist yet.
-     */
-    const ensureBiometricEnabled = async (): Promise<boolean> => {
-        try {
-            const available = await isBiometricAvailable();
-
-            if (!available) {
-                return false;
-            }
-
-            const existingSetting = await AsyncStorage.getItem(
-                BIOMETRIC_ENABLED_KEY
-            );
-
-            if (existingSetting !== "true") {
-                await AsyncStorage.setItem(
-                    BIOMETRIC_ENABLED_KEY,
-                    "true"
-                );
-            }
-
-            return true;
-        } catch (error) {
-            console.error(
-                "Unable to enable biometric authentication:",
-                error
-            );
-
-            return false;
-        }
-    };
-
-    const authenticateWithBiometric =
-        async (): Promise<boolean> => {
-            if (isAuthenticatingRef.current) {
-                return false;
-            }
-
-            try {
-                isAuthenticatingRef.current = true;
-
-                // Never allow biometric authentication to bypass
-                // the 5-attempt PIN lockout.
-                const locked = await checkLockState();
-
-                if (locked) {
-                    return false;
-                }
-
-                /*
-                 * IMPORTANT:
-                 * Automatically enable biometric if the device
-                 * supports it and the user has enrolled biometrics.
-                 *
-                 * This handles existing installations where the
-                 * biometric setting does not exist yet.
-                 */
-                const biometricAvailable =
-                    await ensureBiometricEnabled();
-
-                if (!biometricAvailable) {
-                    return false;
-                }
-
-                // Give the Login screen time to mount before showing
-                // the native Android/iOS biometric dialog.
-                await new Promise((resolve) =>
-                    setTimeout(resolve, 350)
-                );
-
-                const result =
-                    await LocalAuthentication.authenticateAsync({
-                        promptMessage: text.unlockBiometric,
-                        cancelLabel: text.usePin,
-                        disableDeviceFallback: true,
-                    });
-
-                if (result.success) {
-                    await resetSecurityState();
-
-                    setPin("");
-                    setIsLocked(false);
-                    setRemainingSeconds(0);
-
-                    onLoginSuccess();
-
-                    return true;
-                }
-
-                return false;
-            } catch (error) {
-                console.error(
-                    "Biometric authentication error:",
-                    error
-                );
-
-                return false;
-            } finally {
-                isAuthenticatingRef.current = false;
-            }
-        };
-
-    const tryAutomaticBiometric = async () => {
-        if (biometricAttemptedRef.current) {
-            return;
-        }
-
-        biometricAttemptedRef.current = true;
-
-        const locked = await checkLockState();
-
-        if (locked) {
-            setCheckingBiometric(false);
-            return;
-        }
-
-        await authenticateWithBiometric();
-
-        setCheckingBiometric(false);
-    };
-
-    /**
-     * Initial login screen setup.
-     */
-    useEffect(() => {
-        let mounted = true;
-
-        const initializeLogin = async () => {
-            try {
-                const locked = await checkLockState();
-
-                if (!mounted) {
-                    return;
-                }
-
-                if (locked) {
-                    setCheckingBiometric(false);
-                    return;
-                }
-
-                await tryAutomaticBiometric();
-            } catch (error) {
-                console.error(
-                    "Login initialization error:",
-                    error
-                );
-
-                if (mounted) {
-                    setCheckingBiometric(false);
-                }
-            }
-        };
-
-        initializeLogin();
-
-        return () => {
-            mounted = false;
-        };
+    const refreshLock = useCallback(async () => {
+        const now = Date.now();
+        const state = observeClock(await loadThrottle(), now);
+        await saveThrottle(state);
+        const remaining = Math.max(remainingLockMs(state, now), sessionLockRemainingMs());
+        setLockMs(remaining);
+        return remaining;
     }, []);
 
-    /**
-     * If the app comes back to the foreground while the Login
-     * screen is still visible, allow biometric authentication
-     * again.
-     */
-    useEffect(() => {
-        const subscription = AppState.addEventListener(
-            "change",
-            async (nextState: AppStateStatus) => {
-                if (nextState !== "active") {
-                    return;
-                }
+    const succeed = useCallback(async () => {
+        await saveThrottle(registerSuccess(Date.now()));
+        noteSessionLock(0);
+        setPin("");
+        // Complete the PIN migration if it was deferred earlier; failure keeps the old PIN working.
+        void migratePlaintextPin();
+        onLoginSuccess();
+    }, [onLoginSuccess]);
 
-                if (isLocked || isAuthenticatingRef.current) {
-                    return;
-                }
-
-                /*
-                 * Reset the attempt flag when returning from background.
-                 * This allows biometric authentication again.
-                 */
-                biometricAttemptedRef.current = false;
-
-                await tryAutomaticBiometric();
-            }
-        );
-
-        return () => {
-            subscription.remove();
-        };
-    }, [isLocked]);
-
-    /**
-     * 5-minute lock countdown.
-     */
-    useEffect(() => {
-        if (!isLocked) {
-            return;
-        }
-
-        const interval = setInterval(async () => {
-            try {
-                const security = await getSecurityState();
-
-                if (
-                    security.lockUntil &&
-                    security.lockUntil > Date.now()
-                ) {
-                    const seconds = Math.ceil(
-                        (security.lockUntil - Date.now()) / 1000
-                    );
-
-                    setRemainingSeconds(seconds);
-                } else {
-                    await resetSecurityState();
-
-                    setIsLocked(false);
-                    setRemainingSeconds(0);
-                    setPin("");
-
-                    // Allow biometric to be attempted again
-                    // after the lock expires.
-                    biometricAttemptedRef.current = false;
-                }
-            } catch (error) {
-                console.error(
-                    "Lock timer error:",
-                    error
-                );
-            }
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [isLocked]);
-
-    const handleLogin = async () => {
-        if (isLocked) {
-            Alert.alert(
-                text.appLocked,
-                `${text.tooManyAttempts}\n\nPlease try again in ${formatRemainingTime()}.`
-            );
-
-            return;
-        }
-
-        if (pin.length !== 4) {
-            Alert.alert(
-                text.invalidPin,
-                text.invalidPinMessage
-            );
-
-            return;
-        }
-
+    const tryBiometric = useCallback(async () => {
+        if (biometricRunning.current) return;
+        biometricRunning.current = true;
         try {
-            const locked = await checkLockState();
-
-            if (locked) {
-                setPin("");
-
-                Alert.alert(
-                    text.appLocked,
-                    `${text.waitBeforeTrying}\n\n${formatRemainingTime()}`
-                );
-
-                return;
-            }
-
-            const storedSetup = await AsyncStorage.getItem(
-                "mandal_setup"
-            );
-
-            if (!storedSetup) {
-                Alert.alert(
-                    text.error,
-                    text.setupNotFound
-                );
-
-                return;
-            }
-
-            const setupData = JSON.parse(storedSetup);
-
-            const security = await getSecurityState();
-
-            if (pin === setupData.pin) {
-                await resetSecurityState();
-
-                setPin("");
-                setIsLocked(false);
-                setRemainingSeconds(0);
-
-                onLoginSuccess();
-
-                return;
-            }
-
-            const failedAttempts =
-                security.failedAttempts + 1;
-
-            setPin("");
-
-            if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
-                const lockUntil =
-                    Date.now() + 5 * 60 * 1000;
-
-                await AsyncStorage.setItem(
-                    LOGIN_SECURITY_KEY,
-                    JSON.stringify({
-                        failedAttempts: MAX_FAILED_ATTEMPTS,
-                        lockUntil,
-                    })
-                );
-
-                setIsLocked(true);
-                setRemainingSeconds(5 * 60);
-
-                Alert.alert(
-                    text.appLocked,
-                    text.lockedFiveMinutes
-                );
-
-                return;
-            }
-
-            await AsyncStorage.setItem(
-                LOGIN_SECURITY_KEY,
-                JSON.stringify({
-                    failedAttempts,
-                    lockUntil: null,
-                })
-            );
-
-            const attemptsLeft =
-                MAX_FAILED_ATTEMPTS - failedAttempts;
-
-            Alert.alert(
-                text.incorrectPin,
-                `${text.correctPinMessage}\n\n${attemptsLeft} ${
-                    attemptsLeft === 1 ? "" : "s"
-                } remaining.`
-            );
+            if ((await AsyncStorage.getItem(KEYS.biometricEnabled)) !== "true") return;
+            if ((await refreshLock()) > 0) return;
+            const available = (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
+            if (!available) return;
+            const result = await LocalAuthentication.authenticateAsync({
+                promptMessage: s.login.biometricPrompt,
+                cancelLabel: s.login.usePin,
+                disableDeviceFallback: true,
+            });
+            if (result.success) await succeed();
         } catch (error) {
-            console.error(
-                "Login error:",
-                error
-            );
+            console.error("Biometric unlock failed:", error);
+        } finally {
+            biometricRunning.current = false;
+        }
+    }, [refreshLock, s, succeed]);
 
-            Alert.alert(
-                text.error,
-                text.somethingWentWrong
-            );
+    useEffect(() => {
+        AsyncStorage.getItem(KEYS.biometricEnabled).then((v) => setBiometricEnabled(v === "true"));
+        void refreshLock().then(() => tryBiometric());
+        const sub = AppState.addEventListener("change", (next) => {
+            if (next === "active") void refreshLock();
+        });
+        return () => sub.remove();
+    }, [refreshLock, tryBiometric]);
+
+    useEffect(() => {
+        if (lockMs <= 0) return;
+        const timer = setInterval(() => void refreshLock(), 1000);
+        return () => clearInterval(timer);
+    }, [lockMs, refreshLock]);
+
+    const submit = async () => {
+        if (checking || pin.length !== 4) return;
+        setChecking(true);
+        setMessage(null);
+        try {
+            if ((await refreshLock()) > 0) return;
+            if (await checkPin(pin)) {
+                await succeed();
+                return;
+            }
+            const now = Date.now();
+            const next = registerFailure(observeClock(await loadThrottle(), now), now);
+            await saveThrottle(next);
+            const remaining = remainingLockMs(next, now);
+            noteSessionLock(remaining);
+            setLockMs(remaining);
+            setMessage(remaining > 0 ? null : s.login.incorrect(FAILURES_PER_LOCKOUT - (next.failures % FAILURES_PER_LOCKOUT)));
+            setPin("");
+        } finally {
+            setChecking(false);
         }
     };
 
-    if (checkingBiometric) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator
-                    size="large"
-                    color="#2563EB"
-                />
-
-                <Text style={styles.loadingText}>
-                    {text.checkingUnlock}
-                </Text>
-            </View>
-        );
-    }
+    const locked = lockMs > 0;
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>
-                {text.title}
-            </Text>
-
-            {isLocked ? (
+        <SafeAreaView style={styles.container}>
+            <Text style={styles.title}>My Mandal</Text>
+            {locked ? (
                 <>
-                    <Text style={styles.lockTitle}>
-                        {text.appLocked}
-                    </Text>
-
-                    <Text style={styles.lockMessage}>
-                        {text.tooManyAttempts}
-                    </Text>
-
-                    <Text style={styles.timer}>
-                        {formatRemainingTime()}
-                    </Text>
-
-                    <Text style={styles.lockHint}>
-                        {text.waitBeforeTrying}
-                    </Text>
+                    <Text style={styles.lockTitle}>{s.login.locked}</Text>
+                    <Text style={styles.timer}>{formatDuration(lockMs)}</Text>
+                    <Text style={styles.hint}>{s.login.tryAgainIn(formatDuration(lockMs))}</Text>
                 </>
             ) : (
                 <>
-                    <Text style={styles.subtitle}>
-                        {text.enterPin}
-                    </Text>
-
+                    <Text style={styles.subtitle}>{s.login.enterPin}</Text>
                     <TextInput
                         style={styles.pinInput}
                         value={pin}
-                        onChangeText={setPin}
+                        onChangeText={(v) => setPin(v.replace(/\D/g, ""))}
                         keyboardType="number-pad"
                         maxLength={4}
                         secureTextEntry
                         placeholder="••••"
                         textAlign="center"
-                        editable={!isLocked}
+                        onSubmitEditing={() => void submit()}
                     />
-
-                    <TouchableOpacity
-                        style={[
-                            styles.button,
-                            isLocked &&
-                            styles.buttonDisabled,
-                        ]}
-                        onPress={handleLogin}
-                        disabled={isLocked}
-                    >
-                        <Text style={styles.buttonText}>
-                            {text.unlock}
-                        </Text>
+                    {message ? <Text style={styles.error}>{message}</Text> : null}
+                    <TouchableOpacity style={[styles.button, (checking || pin.length !== 4) && styles.disabled]} onPress={() => void submit()} disabled={checking || pin.length !== 4}>
+                        {checking ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>{s.login.unlock}</Text>}
                     </TouchableOpacity>
+                    {biometricEnabled ? (
+                        <TouchableOpacity style={styles.link} onPress={() => void tryBiometric()}>
+                            <Text style={styles.linkText}>{s.login.useBiometric}</Text>
+                        </TouchableOpacity>
+                    ) : null}
                 </>
             )}
-        </View>
+            {onForgotPin ? (
+                <TouchableOpacity style={styles.link} onPress={onForgotPin}>
+                    <Text style={styles.linkText}>{s.login.forgotPin}</Text>
+                </TouchableOpacity>
+            ) : null}
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: "center",
-        paddingHorizontal: 24,
-    },
-
-    loadingContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        paddingHorizontal: 24,
-    },
-
-    loadingText: {
-        marginTop: 12,
-        fontSize: 15,
-        color: "#666",
-    },
-
-    title: {
-        fontSize: 32,
-        fontWeight: "700",
-        textAlign: "center",
-        marginBottom: 10,
-    },
-
-    subtitle: {
-        fontSize: 16,
-        textAlign: "center",
-        marginBottom: 24,
-    },
-
-    pinInput: {
-        alignSelf: "center",
-        width: 180,
-        height: 55,
-        borderWidth: 1,
-        borderColor: "#999",
-        borderRadius: 10,
-        fontSize: 24,
-        marginBottom: 20,
-    },
-
-    button: {
-        height: 50,
-        borderRadius: 10,
-        backgroundColor: "#2563EB",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-
-    buttonDisabled: {
-        opacity: 0.5,
-    },
-
-    buttonText: {
-        color: "#FFFFFF",
-        fontSize: 17,
-        fontWeight: "600",
-    },
-
-    lockTitle: {
-        fontSize: 24,
-        fontWeight: "700",
-        textAlign: "center",
-        marginBottom: 10,
-    },
-
-    lockMessage: {
-        fontSize: 16,
-        textAlign: "center",
-        color: "#666",
-        marginBottom: 20,
-    },
-
-    timer: {
-        fontSize: 42,
-        fontWeight: "700",
-        textAlign: "center",
-        marginBottom: 12,
-    },
-
-    lockHint: {
-        fontSize: 14,
-        textAlign: "center",
-        color: "#777",
-    },
+    container: { flex: 1, justifyContent: "center", paddingHorizontal: 24, backgroundColor: "#FFF" },
+    title: { fontSize: 32, fontWeight: "700", textAlign: "center", marginBottom: 10, color: colors.text },
+    subtitle: { fontSize: 16, textAlign: "center", marginBottom: 24, color: colors.text },
+    pinInput: { alignSelf: "center", width: 180, height: 55, borderWidth: 1, borderColor: "#999", borderRadius: 10, fontSize: 24, marginBottom: 12 },
+    error: { color: colors.danger, textAlign: "center", marginBottom: 12 },
+    button: { height: 50, borderRadius: 10, backgroundColor: colors.primary, justifyContent: "center", alignItems: "center" },
+    disabled: { opacity: 0.5 },
+    buttonText: { color: "#FFF", fontSize: 17, fontWeight: "600" },
+    lockTitle: { fontSize: 22, fontWeight: "700", textAlign: "center", marginBottom: 10, color: colors.danger },
+    timer: { fontSize: 42, fontWeight: "700", textAlign: "center", marginBottom: 12 },
+    hint: { fontSize: 14, textAlign: "center", color: colors.muted },
+    link: { marginTop: 18, alignItems: "center" },
+    linkText: { color: colors.primary, fontSize: 15, fontWeight: "600" },
 });
