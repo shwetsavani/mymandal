@@ -93,6 +93,15 @@ Branch: `repair/financial-integrity-v2`. Target app version 1.1.0, package `com.
 - Firestore mirror is still unverified; run `npm run firestore:export -- --compare <in-app JSON backup>` first.
 - `npx expo install --check` suggests patch updates (expo 57.0.31, expo-dev-client 57.0.20, expo-notifications 57.0.24, expo-sharing 57.0.24); not applied.
 
+## Expo SDK 58 upgrade (branch `upgrade/expo-sdk-58`)
+- Process: `npm install expo@^58.0.0` → `npx expo install --fix` → `npx expo-doctor@latest` (20/20). Node 22.23.2 (SDK 58 needs ≥ 22.13).
+- Key versions: expo 57.0.26 → 58.0.21, react-native 0.86.3 → 0.88.1, react 19.2.3 → 19.3.0, jest 29.7 → 30.5, jest-expo 57 → 58, all expo-* modules → 58.x. AsyncStorage (2.2.0) and firebase (12.19.0) unchanged, so stored data and auth persistence formats are unchanged.
+- Code fix: `App.tsx` AppState ref type (RN 0.88 strict types: `currentState` may be null). Lock behaviour unchanged (fails closed).
+- `expo install --fix` added the `expo-status-bar` plugin (no options, no native effect).
+- Development variant: `app.config.js` + `eas.json` development `APP_VARIANT=development` → package `com.savani.mymandal.dev` (separate storage, cannot replace the production app). Cloud uploads refused in dev JS (`__DEV__`) and the dev variant (`src/config/appVariant.ts`). Production config is identical to `app.json`.
+- Reviewed breaking changes: no removed RN APIs used; app uses `expo-file-system/legacy` (unaffected by async `File.write`); app sets its own notification handler; SecureStore 58 has no storage-format change; R8 minification now on by default in release builds (needs device verification).
+- Results: 120 tests pass (117 unchanged + 3 new), tsc clean, `expo export` Android OK, Metro dev server OK, Android prebuild (temp copy) OK. No native APK built, no emulator/device run (no Android SDK/Java on this machine).
+
 ## Not done / limitations
 - Add Member is intentionally absent; a fresh install can only get members by restoring a backup.
 - Live Firestore rules unknown; cloud backup upload may be denied until the proposed rules (or equivalent) are reviewed and deployed by the owner.
