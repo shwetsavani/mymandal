@@ -67,10 +67,24 @@ export const createAndShareLocalBackup = async (): Promise<{ fileName: string; b
     }
 };
 
-/** Lets the user pick a backup file and returns the validated backup (not yet applied). */
-export const pickBackupFile = async (): Promise<ReturnType<typeof parseAnyBackup> | null> => {
+type PickedBackup = ReturnType<typeof parseAnyBackup> | null;
+
+// The native picker rejects a second call while one is open, so repeated taps share the pending pick.
+let pickInFlight: Promise<PickedBackup> | null = null;
+
+const pickBackupFileOnce = async (): Promise<PickedBackup> => {
     const result = await DocumentPicker.getDocumentAsync({ type: ["application/json", "text/plain", "*/*"], copyToCacheDirectory: true });
     if (result.canceled || !result.assets?.[0]) return null;
     const json = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: FileSystem.EncodingType.UTF8 });
     return parseAnyBackup(json, APP_VERSION);
+};
+
+/** Lets the user pick a backup file and returns the validated backup (not yet applied). */
+export const pickBackupFile = (): Promise<PickedBackup> => {
+    if (!pickInFlight) {
+        pickInFlight = pickBackupFileOnce().finally(() => {
+            pickInFlight = null;
+        });
+    }
+    return pickInFlight;
 };
