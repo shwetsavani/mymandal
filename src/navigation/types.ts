@@ -5,6 +5,7 @@ export type RootStackParamList = {
     MonthlyPayments: { year: number; month: number } | undefined;
     MemberMonth: { memberId: string; year: number; month: number };
     Members: undefined;
+    AddMember: undefined;
     EditMember: { memberId: string };
     History: undefined;
     Reports: undefined;

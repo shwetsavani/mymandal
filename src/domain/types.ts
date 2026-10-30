@@ -163,6 +163,16 @@ export type FinancialState = {
     settings: MandalSettings;
 };
 
+/** A permanently deleted member with every record removed with it, kept so the deletion can be undone. */
+export type DeletedMemberRecord = {
+    id: string;
+    deletedAt: string;
+    member: Member;
+    obligations: MonthlyObligation[];
+    payments: Payment[];
+    waivers: Waiver[];
+};
+
 export const isPaymentValid = (payment: Payment): boolean => payment.status !== "reversed";
 export const isWaiverValid = (waiver: Waiver): boolean => waiver.status !== "reversed";
 export const isMemberClosed = (member: Member): boolean => member.membershipStatus === "closed";

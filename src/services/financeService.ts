@@ -1,26 +1,30 @@
 import type { YearMonth } from "../domain/calendar";
 import {
+    addMember,
     addWaiver,
     cancelInstallmentChange,
     closeMembership,
     correctPaymentDate,
+    deleteMemberPermanently,
     ensureObligation,
     FinanceError,
     generateObligations,
     recordPayment,
     resetMonthPayments,
     reversePayment,
+    restoreDeletedMember,
     reverseWaiver,
     scheduleInstallmentChange,
     setPaymentAllocation,
     updateMemberDetails,
+    type NewMemberInput,
     type PaymentInput,
     type WaiverInput,
 } from "../domain/operations";
-import type { FinancialState, MandalSetup } from "../domain/types";
+import type { DeletedMemberRecord, FinancialState, MandalSetup } from "../domain/types";
 import { KEYS } from "../storage/keys";
 import { loadFinancialState, mutateFinancialState, readSetup } from "../storage/repository";
-import { commitJournaled, withStorageLock } from "../storage/safeStorage";
+import { commitJournaled, readJson, withStorageLock } from "../storage/safeStorage";
 
 /**
  * Storage-backed wrappers around the pure operations. Each one re-reads the
@@ -117,3 +121,36 @@ export const submitSetupInfo = (info: Pick<MandalSetup, "mandalName" | "adminNam
 
 export const submitMembershipClosure = (memberId: string, reason: string) =>
     mutateFinancialState("close-membership", (state) => ({ state: closeMembership(state, memberId, reason, Date.now()), result: true }));
+
+export const submitNewMember = (input: NewMemberInput) =>
+    mutateFinancialState("add-member", (state) => {
+        const result = addMember(state, input, Date.now());
+        return { state: result.state, result: result.member };
+    });
+
+const MAX_DELETED_MEMBERS = 20;
+
+export const listDeletedMembers = async (): Promise<DeletedMemberRecord[]> => {
+    const records = await readJson<DeletedMemberRecord[]>(KEYS.deletedMembers, []);
+    return Array.isArray(records) ? records : [];
+};
+
+/** Deletes a member permanently; the removed records go to "Recently deleted" in the same journaled write. */
+export const submitMemberDeletion = (memberId: string) =>
+    mutateFinancialState("delete-member", async (state) => {
+        const { state: next, removed } = deleteMemberPermanently(state, memberId, Date.now());
+        const kept = [removed, ...(await listDeletedMembers())].slice(0, MAX_DELETED_MEMBERS);
+        return { state: next, result: removed, extraWrites: { [KEYS.deletedMembers]: JSON.stringify(kept) } };
+    });
+
+export const submitDeletedMemberRestore = (recordId: string) =>
+    mutateFinancialState("restore-deleted-member", async (state) => {
+        const records = await listDeletedMembers();
+        const record = records.find((r) => r.id === recordId);
+        if (!record) throw new FinanceError("not_found", "This deleted member is no longer available.");
+        return {
+            state: restoreDeletedMember(state, record, Date.now()),
+            result: record.member,
+            extraWrites: { [KEYS.deletedMembers]: JSON.stringify(records.filter((r) => r.id !== recordId)) },
+        };
+    });

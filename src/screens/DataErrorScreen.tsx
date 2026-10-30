@@ -19,6 +19,7 @@ const RAW_KEYS = [
     KEYS.journal,
     KEYS.premigrationSnapshot,
     KEYS.restoreSnapshots,
+    KEYS.deletedMembers,
 ];
 
 /** Saves the raw stored strings (no PIN, no credentials) so data can be recovered manually. */

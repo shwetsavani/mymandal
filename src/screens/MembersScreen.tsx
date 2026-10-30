@@ -1,14 +1,21 @@
 import { useNavigation } from "@react-navigation/native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Text, View } from "react-native";
 
+import { formatIstDateTime } from "../domain/calendar";
 import { pendingInstallmentChange } from "../domain/installments";
 import { rupeesToPaise } from "../domain/money";
-import { checkMembershipClosure, FinanceError } from "../domain/operations";
-import { isMemberClosed, type Member } from "../domain/types";
+import { checkMembershipClosure, FinanceError, previewMemberDeletion } from "../domain/operations";
+import { isMemberClosed, type DeletedMemberRecord, type Member } from "../domain/types";
 import { useStrings } from "../localization/strings";
 import type { Nav } from "../navigation/types";
-import { submitCancelInstallmentChange, submitMembershipClosure } from "../services/financeService";
+import {
+    listDeletedMembers,
+    submitCancelInstallmentChange,
+    submitDeletedMemberRestore,
+    submitMemberDeletion,
+    submitMembershipClosure,
+} from "../services/financeService";
 import { Badge, Button, Card, Field, Loading, Note, Row, Screen, Sheet, colors } from "../ui/components";
 import { money } from "../ui/selectors";
 import { useFinance } from "../ui/useFinance";
@@ -21,6 +28,13 @@ export default function MembersScreen() {
     const [closing, setClosing] = useState<Member | null>(null);
     const [reason, setReason] = useState("");
     const [busy, setBusy] = useState(false);
+    const [deleted, setDeleted] = useState<DeletedMemberRecord[]>([]);
+
+    useEffect(() => {
+        listDeletedMembers()
+            .then(setDeleted)
+            .catch(() => setDeleted([]));
+    }, [state]);
 
     if (error) return <DataErrorView error={error} onRetry={reload} />;
     if (!state) return <Loading />;
@@ -59,6 +73,37 @@ export default function MembersScreen() {
         }
     };
 
+    const confirmDelete = (member: Member) => {
+        const preview = previewMemberDeletion(state, member.id);
+        Alert.alert(
+            s.members.deleteTitle(member.name),
+            s.members.deleteConfirm(preview.obligationCount, preview.paymentCount, money(preview.receivedPaise)),
+            [
+                { text: s.common.cancel, style: "cancel" },
+                {
+                    text: s.members.deleteAction,
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await submitMemberDeletion(member.id);
+                        } catch (e) {
+                            Alert.alert(s.common.error, e instanceof Error ? e.message : String(e));
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const restoreDeleted = async (record: DeletedMemberRecord) => {
+        try {
+            await submitDeletedMemberRestore(record.id);
+            Alert.alert(s.members.restored(record.member.name));
+        } catch (e) {
+            Alert.alert(s.common.error, e instanceof Error ? e.message : String(e));
+        }
+    };
+
     const renderMember = (member: Member) => {
         const pending = pendingInstallmentChange(member);
         return (
@@ -87,16 +132,30 @@ export default function MembersScreen() {
                         </View>
                     </View>
                 )}
+                <Button size="small" variant="danger" label={s.members.deletePermanently} onPress={() => confirmDelete(member)} />
             </Card>
         );
     };
 
+    const sectionTitle = { fontSize: 16, fontWeight: "700" as const, color: colors.muted, marginTop: 8 };
+
     return (
-        <Screen title={s.members.title} onBack={() => navigation.goBack()}>
-            <Note>{s.members.noAdd}</Note>
+        <Screen
+            title={s.members.title}
+            onBack={() => navigation.goBack()}
+            right={<Button size="small" label={s.members.add} onPress={() => navigation.navigate("AddMember")} />}
+        >
             {active.map(renderMember)}
-            {closed.length > 0 ? <Text style={{ fontSize: 16, fontWeight: "700", color: colors.muted, marginTop: 8 }}>{s.members.closedMembers}</Text> : null}
+            {closed.length > 0 ? <Text style={sectionTitle}>{s.members.closedMembers}</Text> : null}
             {closed.map(renderMember)}
+            {deleted.length > 0 ? <Text style={sectionTitle}>{s.members.recentlyDeleted}</Text> : null}
+            {deleted.map((record) => (
+                <Card key={record.id}>
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>{record.member.name}</Text>
+                    <Note>{s.members.deletedOn(formatIstDateTime(record.deletedAt))}</Note>
+                    <Button size="small" variant="secondary" label={s.members.restore} onPress={() => void restoreDeleted(record)} />
+                </Card>
+            ))}
 
             {closing && closure ? (
                 <Sheet visible title={`${s.members.close} · ${closing.name}`} onClose={() => setClosing(null)}>
