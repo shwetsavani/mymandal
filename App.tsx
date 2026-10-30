@@ -7,6 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { LanguageProvider } from "./src/localization/LanguageContext";
 import type { RootStackParamList } from "./src/navigation/types";
+import AddMemberScreen from "./src/screens/AddMemberScreen";
 import EditMemberScreen from "./src/screens/EditMemberScreen";
 import ExportScreen from "./src/screens/ExportScreen";
 import ForgotPinScreen from "./src/screens/ForgotPinScreen";
@@ -108,6 +109,7 @@ export default function App() {
                             <Stack.Screen name="MonthlyPayments" component={MonthlyPaymentsScreen} />
                             <Stack.Screen name="MemberMonth" component={MemberMonthScreen} />
                             <Stack.Screen name="Members" component={MembersScreen} />
+                            <Stack.Screen name="AddMember" component={AddMemberScreen} />
                             <Stack.Screen name="EditMember" component={EditMemberScreen} />
                             <Stack.Screen name="History" component={HistoryScreen} />
                             <Stack.Screen name="Reports" component={ReportsScreen} />

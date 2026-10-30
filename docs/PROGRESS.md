@@ -30,7 +30,9 @@ Branch: `repair/financial-integrity-v2`. Target app version 1.1.0, package `com.
 - Otherwise the payment is "unclassified": shown as received cash, and the obligation is flagged "needs review". The engine does not guess. The admin can classify it via a focused correction (stored as `principalPaise`/`penaltyPaise` with `allocationSource: "classified"`; amount and date untouched; audit entry written).
 
 ### Membership
-- No Add Member, no permanent delete. Closure requires all obligations settled or waived; closure stops future obligations.
+- Add Member (owner decision, 30 Oct 2026): name, optional 10-digit mobile, whole-rupee installment, start month (Mandal start → next month). Every month from the start to now is created at once. Duplicate active names/mobiles are rejected. The first member on a fresh install sets the Mandal start.
+- Delete Permanently (owner decision, like the old app): removes the member with all obligations, payments and waivers after one confirmation that shows the months, payments and amount received being removed. The removed records go to "Recently deleted" (`mandal_deleted_members`, last 20) in the same journaled write and can be restored exactly; the audit log keeps a summary.
+- Closure requires all obligations settled or waived; closure stops future obligations.
 - Member obligation start = earliest existing obligation for that member, else Mandal start (earliest obligation overall). Real data: September 2026.
 - Installment schedule (`installmentSchedule`) derived from existing obligations for generating any missed month with the right amount. Pending changes stay in the legacy `pending*` fields and are cancellable before effective month.
 
@@ -103,7 +105,6 @@ Branch: `repair/financial-integrity-v2`. Target app version 1.1.0, package `com.
 - Results: 120 tests pass (117 unchanged + 3 new), tsc clean, `expo export` Android OK, Metro dev server OK, Android prebuild (temp copy) OK. No native APK built, no emulator/device run (no Android SDK/Java on this machine).
 
 ## Not done / limitations
-- Add Member is intentionally absent; a fresh install can only get members by restoring a backup.
 - Live Firestore rules unknown; cloud backup upload may be denied until the proposed rules (or equivalent) are reviewed and deployed by the owner.
 - Reminders are local, computed when the app last ran; delivery may be slightly late (no exact-alarm permission).
 - Tested with unit tests only; no device/emulator run in this environment.

@@ -10,6 +10,7 @@ export const KEYS = {
     journal: "mandal_write_journal",
     premigrationSnapshot: "mandal_snapshot_premigration_v1",
     restoreSnapshots: "mandal_snapshots_prerestore",
+    deletedMembers: "mandal_deleted_members",
     backupStatus: "mandal_backup_status",
     biometricEnabled: "mandal_biometric_enabled",
     loginSecurity: "mandal_login_security",

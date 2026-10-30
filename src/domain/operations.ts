@@ -6,6 +6,7 @@ import {
     isMemberClosed,
     newId,
     type AuditEntry,
+    type DeletedMemberRecord,
     type FinancialState,
     type Member,
     type MonthlyObligation,
@@ -745,6 +746,175 @@ export const closeMembership = (state: FinancialState, memberId: string, reason:
         auditLog: [
             ...next.auditLog,
             audit({ action: "membership_closed", memberId, reason: why, details: `Last obligation month ${check.lastMonth.month}/${check.lastMonth.year}` }, now),
+        ],
+    };
+};
+
+export type NewMemberInput = {
+    name: string;
+    mobile: string;
+    installmentRupees: number;
+    start: YearMonth;
+};
+
+/**
+ * Adds a member whose obligations start in `start`. Every month from the start
+ * through the current India month is created immediately. The first member of
+ * a fresh install also sets the Mandal start month.
+ */
+export const addMember = (state: FinancialState, input: NewMemberInput, now: number): { state: FinancialState; member: Member } => {
+    const name = input.name.trim();
+    const mobile = input.mobile.trim();
+    if (name.length < 2) throw new FinanceError("invalid_name", "Please enter the member's name.");
+    if (mobile && !/^\d{10}$/.test(mobile)) throw new FinanceError("invalid_mobile", "Mobile number must be 10 digits.");
+    if (!Number.isInteger(input.installmentRupees) || input.installmentRupees <= 0 || input.installmentRupees > 1_000_000) {
+        throw new FinanceError("invalid_amount", "Installment must be a whole rupee amount.");
+    }
+    const active = state.members.filter((m) => !isMemberClosed(m));
+    if (active.some((m) => m.name.trim().toLowerCase() === name.toLowerCase())) {
+        throw new FinanceError("duplicate_name", `A member named ${name} already exists.`);
+    }
+    if (mobile && active.some((m) => m.mobile.trim() === mobile)) {
+        throw new FinanceError("duplicate_mobile", "Another member already has this mobile number.");
+    }
+    const current = currentIstMonth(now);
+    if (compareYearMonth(input.start, addMonths(current, 1)) > 0) {
+        throw new FinanceError("start_too_late", "The start month can be at most next month.");
+    }
+    const mandalStart =
+        state.settings.mandalStartYear && state.settings.mandalStartMonth
+            ? { year: state.settings.mandalStartYear, month: state.settings.mandalStartMonth }
+            : null;
+    if (mandalStart && compareYearMonth(input.start, mandalStart) < 0) {
+        throw new FinanceError("before_mandal_start", "The start month cannot be before the Mandal start month.");
+    }
+
+    const nowIso = new Date(now).toISOString();
+    const member: Member = {
+        id: newId(),
+        name,
+        mobile,
+        monthlyInstallment: input.installmentRupees,
+        isActive: true,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        obligationStartYear: input.start.year,
+        obligationStartMonth: input.start.month,
+        installmentSchedule: [{ year: input.start.year, month: input.start.month, amount: input.installmentRupees }],
+        membershipStatus: "active",
+    };
+    let next: FinancialState = {
+        ...state,
+        members: [...state.members, member],
+        settings: mandalStart ? state.settings : { ...state.settings, mandalStartYear: input.start.year, mandalStartMonth: input.start.month },
+    };
+    next = generateObligations(next, now).state;
+    return {
+        state: {
+            ...next,
+            auditLog: [
+                ...next.auditLog,
+                audit(
+                    {
+                        action: "member_added",
+                        memberId: member.id,
+                        details: `${name}, ₹${input.installmentRupees}/month from ${input.start.month}/${input.start.year}`,
+                    },
+                    now
+                ),
+            ],
+        },
+        member,
+    };
+};
+
+export type MemberDeletionPreview = {
+    member: Member;
+    obligationCount: number;
+    paymentCount: number;
+    receivedPaise: Paise;
+    waiverCount: number;
+};
+
+export const previewMemberDeletion = (state: FinancialState, memberId: string): MemberDeletionPreview => {
+    const member = findMember(state, memberId);
+    const payments = state.payments.filter((p) => p.memberId === memberId);
+    return {
+        member,
+        obligationCount: state.obligations.filter((o) => o.memberId === memberId).length,
+        paymentCount: payments.length,
+        receivedPaise: payments.filter((p) => p.status !== "reversed").reduce((sum, p) => sum + paymentAmountPaise(p), 0),
+        waiverCount: state.waivers.filter((w) => w.memberId === memberId).length,
+    };
+};
+
+/**
+ * Permanently removes a member with all of their obligations, payments and
+ * waivers. The removed records are returned so the caller can keep them for
+ * undo; the audit log keeps a summary of what was removed.
+ */
+export const deleteMemberPermanently = (
+    state: FinancialState,
+    memberId: string,
+    now: number
+): { state: FinancialState; removed: DeletedMemberRecord } => {
+    const preview = previewMemberDeletion(state, memberId);
+    const nowIso = new Date(now).toISOString();
+    const removed: DeletedMemberRecord = {
+        id: newId(),
+        deletedAt: nowIso,
+        member: preview.member,
+        obligations: state.obligations.filter((o) => o.memberId === memberId),
+        payments: state.payments.filter((p) => p.memberId === memberId),
+        waivers: state.waivers.filter((w) => w.memberId === memberId),
+    };
+    return {
+        state: {
+            ...state,
+            members: state.members.filter((m) => m.id !== memberId),
+            obligations: removed.obligations.length > 0 ? state.obligations.filter((o) => o.memberId !== memberId) : state.obligations,
+            payments: removed.payments.length > 0 ? state.payments.filter((p) => p.memberId !== memberId) : state.payments,
+            waivers: removed.waivers.length > 0 ? state.waivers.filter((w) => w.memberId !== memberId) : state.waivers,
+            auditLog: [
+                ...state.auditLog,
+                audit(
+                    {
+                        action: "member_deleted",
+                        memberId,
+                        details: `${preview.member.name}: removed ${preview.obligationCount} month(s), ${preview.paymentCount} payment(s) (${preview.receivedPaise}p received), ${preview.waiverCount} waiver(s)`,
+                    },
+                    now
+                ),
+            ],
+        },
+        removed,
+    };
+};
+
+/** Puts a deleted member and all of their records back exactly as they were. */
+export const restoreDeletedMember = (state: FinancialState, record: DeletedMemberRecord, now: number): FinancialState => {
+    const taken = (ids: string[], records: { id: string }[]) => records.some((r) => ids.includes(r.id));
+    if (
+        state.members.some((m) => m.id === record.member.id) ||
+        taken(state.obligations.map((o) => o.id), record.obligations) ||
+        taken(state.payments.map((p) => p.id), record.payments) ||
+        taken(state.waivers.map((w) => w.id), record.waivers)
+    ) {
+        throw new FinanceError("restore_conflict", "This member's records already exist.");
+    }
+    const name = record.member.name.trim().toLowerCase();
+    if (!isMemberClosed(record.member) && state.members.some((m) => !isMemberClosed(m) && m.name.trim().toLowerCase() === name)) {
+        throw new FinanceError("duplicate_name", `A member named ${record.member.name} already exists.`);
+    }
+    return {
+        ...state,
+        members: [...state.members, record.member],
+        obligations: [...state.obligations, ...record.obligations],
+        payments: [...state.payments, ...record.payments],
+        waivers: [...state.waivers, ...record.waivers],
+        auditLog: [
+            ...state.auditLog,
+            audit({ action: "member_restored", memberId: record.member.id, details: `${record.member.name} restored from deletion ${record.id}` }, now),
         ],
     };
 };
